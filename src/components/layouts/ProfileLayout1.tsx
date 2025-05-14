@@ -8,7 +8,9 @@ import {
   ChevronLeft,
   BarChart
 } from "lucide-react";
+import MainNavbar from '@/components/navigation/MainNavbar';
 import { useAuth } from '@/contexts/AuthContext';
+import { useGame } from '@/contexts/GameContext';
 import { useNavigate } from 'react-router-dom';
 import { Badge as BadgeType, BadgeEvaluation } from '@/utils/badges/types';
 import { evaluateUserBadges } from '@/utils/badges/badgeService';
@@ -34,6 +36,14 @@ import SettingsTab from '@/components/profile/SettingsTab';
 const ProfileLayout1 = () => {
   const { user } = useAuth();
   const navigate = useNavigate();
+  const { fetchGlobalMetrics } = useGame();
+  
+  // Ensure global score is updated when the profile page is loaded
+  useEffect(() => {
+    // Fetch updated global metrics
+    fetchGlobalMetrics();
+    console.log('Fetched updated global metrics on profile page');
+  }, [fetchGlobalMetrics]);
   
   // State for profile data
   const [profile, setProfile] = useState<UserProfile | null>(null);
@@ -265,8 +275,11 @@ const ProfileLayout1 = () => {
   };
   
   return (
-    <div className="min-h-screen bg-history-light dark:bg-history-dark">
-      <div className="max-w-4xl mx-auto p-4 pt-8">
+    <div className="min-h-screen bg-history-light dark:bg-history-dark flex flex-col">
+      {/* Add MainNavbar at the top */}
+      <MainNavbar onMenuClick={() => console.log('Menu clicked')} />
+      
+      <div className="max-w-4xl mx-auto p-4 pt-8 flex-grow">
         {/* Removed back button and title for cleaner interface */}
         
         {/* Profile Header */}

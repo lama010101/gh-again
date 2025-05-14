@@ -27,7 +27,9 @@ const GameRoundPage = () => {
     error: contextError,
     roomId: contextRoomId,
     recordRoundResult,
-    roundTimerSec
+    roundTimerSec,
+    totalGameAccuracy,
+    totalGameXP
   } = useGame();
   const { toast } = useToast();
 
@@ -199,10 +201,10 @@ const GameRoundPage = () => {
   return (
     // Use relative positioning to allow absolute positioning for the button
     <div className="relative w-full min-h-screen flex flex-col">
-      {/* Move the progress bar to be part of the navbar by using negative margin */}
-      <div className="w-full bg-history-primary">
-        <div className="max-w-7xl mx-auto px-4">
-          <SegmentedProgressBar current={roundNumber} total={ROUNDS_PER_GAME} className="w-full -mb-0.5" />
+      {/* Progress bar at the very top */}
+      <div className="w-full bg-history-primary absolute top-0 z-50">
+        <div className="max-w-7xl mx-auto">
+          <SegmentedProgressBar current={roundNumber} total={ROUNDS_PER_GAME} className="w-full" />
         </div>
       </div>
        

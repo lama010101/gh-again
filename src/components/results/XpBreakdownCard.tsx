@@ -23,16 +23,16 @@ const XpBreakdownCard: React.FC<XpBreakdownCardProps> = ({
         <div>
           <div className="flex justify-between mb-1">
             <span className="text-sm font-medium">Where</span>
-            <span className="text-sm font-medium">{xpWhere} XP</span>
+            <span className="text-sm font-medium">{Math.round(xpWhere)} XP</span>
           </div>
           <div className="relative h-2 bg-gray-200 dark:bg-gray-700 rounded-full">
             <div 
               className="absolute top-0 left-0 h-full bg-history-accent rounded-full" 
-              style={{ width: `${locationAccuracy}%` }}
+              style={{ width: `${Math.round(locationAccuracy)}%` }}
             />
           </div>
           <div className="text-xs text-right mt-1 text-muted-foreground">
-            {locationAccuracy.toFixed(0)}% accurate
+            {Math.round(locationAccuracy)}% accurate
           </div>
         </div>
         
@@ -40,16 +40,16 @@ const XpBreakdownCard: React.FC<XpBreakdownCardProps> = ({
         <div>
           <div className="flex justify-between mb-1">
             <span className="text-sm font-medium">When</span>
-            <span className="text-sm font-medium">{xpWhen} XP</span>
+            <span className="text-sm font-medium">{Math.round(xpWhen)} XP</span>
           </div>
           <div className="relative h-2 bg-gray-200 dark:bg-gray-700 rounded-full">
             <div 
               className="absolute top-0 left-0 h-full bg-history-primary rounded-full" 
-              style={{ width: `${timeAccuracy}%` }}
+              style={{ width: `${Math.round(timeAccuracy)}%` }}
             />
           </div>
           <div className="text-xs text-right mt-1 text-muted-foreground">
-            {timeAccuracy.toFixed(0)}% accurate
+            {Math.round(timeAccuracy)}% accurate
           </div>
         </div>
       </div>

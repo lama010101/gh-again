@@ -22,7 +22,7 @@ const LocationAccuracyCard: React.FC<LocationAccuracyCardProps> = ({
           Location Accuracy
         </h2>
         <div className="px-3 py-1 rounded-full bg-history-primary/10 text-history-primary dark:bg-history-primary/20 dark:text-history-light text-sm">
-          {distanceKm.toFixed(1)} km off
+          {Math.round(distanceKm)} km off
         </div>
       </div>
       

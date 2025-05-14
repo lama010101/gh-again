@@ -4,7 +4,7 @@ import { useHint } from '@/hooks/useHint';
 import HintModal from '@/components/HintModal';
 
 // Import refactored components
-import GameHeader from '@/components/game/GameHeader';
+import GameOverlayHUD from '@/components/navigation/GameOverlayHUD';
 import YearSelector from '@/components/game/YearSelector';
 import LocationSelector from '@/components/game/LocationSelector';
 import TimerDisplay, { formatTime } from '@/components/game/TimerDisplay';
@@ -39,19 +39,22 @@ const GameLayout1: React.FC<GameLayout1Props> = ({
   isTimerActive,
 }) => {
   const [isHintModalOpen, setIsHintModalOpen] = useState(false);
-  const { hintsAllowed } = useGame();
+  const { hintsAllowed, totalGameAccuracy, totalGameXP } = useGame();
   
   const {
     selectedHintType,
-    selectedHintTypes,
     hintContent,
-    hintContents,
     selectHint,
-    viewHint,
     hintsUsed,
     canSelectHint,
     canSelectHintType
-  } = useHint(image);
+  } = useHint(image ? {
+    location_name: image.location_name,
+    gps: { lat: image.latitude, lng: image.longitude },
+    year: image.year,
+    title: image.title,
+    description: image.description
+  } : undefined);
 
   const handleHintClick = () => {
     if (canSelectHint) {
@@ -86,16 +89,24 @@ const GameLayout1: React.FC<GameLayout1Props> = ({
         onTimeout={onComplete}
       />
       
-      <GameHeader 
-        imageUrl={image.url}
-        imageAlt={image.title}
-        selectedHintType={selectedHintType}
-        remainingTime={isTimerActive ? formatTime(remainingTime) : undefined}
-        rawRemainingTime={isTimerActive ? remainingTime : undefined}
-        onHintClick={handleHintClick}
-        hintsUsed={hintsUsed || 0}
-        hintsAllowed={hintsAllowed}
-      />
+      <div className="w-full h-[40vh] md:h-[50vh] relative">
+        <img
+          src={image.url}
+          alt={image.title}
+          className="w-full h-full object-cover"
+        />
+        <GameOverlayHUD 
+          selectedHintType={selectedHintType}
+          remainingTime={isTimerActive ? formatTime(remainingTime) : undefined}
+          rawRemainingTime={isTimerActive ? remainingTime : undefined}
+          onHintClick={handleHintClick}
+          hintsUsed={hintsUsed || 0}
+          hintsAllowed={hintsAllowed}
+          currentAccuracy={totalGameAccuracy} // Use actual game accuracy
+          currentScore={totalGameXP} // Use actual game score
+          onMenuClick={() => console.log('Profile clicked')}
+        />
+      </div>
       
       <div className="flex-grow p-4 md:p-8">
         <div className="max-w-5xl mx-auto">
@@ -116,13 +127,8 @@ const GameLayout1: React.FC<GameLayout1Props> = ({
         isOpen={isHintModalOpen}
         onOpenChange={setIsHintModalOpen}
         selectedHintType={selectedHintType}
-        selectedHintTypes={selectedHintTypes}
         hintContent={hintContent}
-        hintContents={hintContents}
         onSelectHint={selectHint}
-        onViewHint={viewHint}
-        canSelectHint={canSelectHint}
-        canSelectHintType={canSelectHintType}
       />
     </div>
   );

@@ -15,8 +15,12 @@ const ScoreCard: React.FC<ScoreCardProps> = ({
   xpTotal 
 }) => {
   // Calculate overall accuracy as the average of location and time accuracy
-  const overallAccuracy = Math.round((locationAccuracy + timeAccuracy) / 2);
-  const isPerfectScore = locationAccuracy >= 95 && timeAccuracy >= 95;
+  // Round all values to integers
+  const roundedLocationAccuracy = Math.round(locationAccuracy);
+  const roundedTimeAccuracy = Math.round(timeAccuracy);
+  const roundedXpTotal = Math.round(xpTotal);
+  const overallAccuracy = Math.round((roundedLocationAccuracy + roundedTimeAccuracy) / 2);
+  const isPerfectScore = roundedLocationAccuracy >= 95 && roundedTimeAccuracy >= 95;
   
   return (
     <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-lg p-4">
@@ -31,7 +35,7 @@ const ScoreCard: React.FC<ScoreCardProps> = ({
         </div>
         <div className="flex flex-col items-center justify-center p-3 rounded-xl bg-history-secondary/5 dark:bg-history-secondary/10">
           <Badge variant="green" className="text-lg mb-1">
-            +{xpTotal} XP
+            +{roundedXpTotal} XP
           </Badge>
           <div className="text-sm text-muted-foreground">XP Gained</div>
         </div>
@@ -40,11 +44,11 @@ const ScoreCard: React.FC<ScoreCardProps> = ({
       <div className="space-y-2">
         <div className="flex items-center justify-between">
           <span className="text-sm">Where:</span>
-          <Badge variant="orange">{locationAccuracy}% Correct</Badge>
+          <Badge variant="orange">{roundedLocationAccuracy}% Correct</Badge>
         </div>
         <div className="flex items-center justify-between">
           <span className="text-sm">When:</span>
-          <Badge variant="orange">{timeAccuracy}% Correct</Badge>
+          <Badge variant="orange">{roundedTimeAccuracy}% Correct</Badge>
         </div>
       </div>
       

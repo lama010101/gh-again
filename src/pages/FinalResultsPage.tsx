@@ -3,6 +3,8 @@ import { useNavigate, useParams } from "react-router-dom";
 import { Share2, Loader, Home, MapPin, Calendar, ArrowLeft, Target, Zap } from "lucide-react";
 import { useGame } from "@/contexts/GameContext";
 import { Badge } from "@/components/ui/badge";
+import MainNavbar from "@/components/navigation/MainNavbar";
+import { useEffect } from "react";
 import { 
   calculateFinalScore,
   calculateTimeAccuracy,
@@ -18,8 +20,16 @@ const FinalResultsPage = () => {
     error: contextError, 
     startGame,
     resetGame,
-    roundResults
+    roundResults,
+    fetchGlobalMetrics
   } = useGame();
+  
+  // Ensure global score is updated when the final results page is loaded
+  useEffect(() => {
+    // Fetch updated global metrics after game completion
+    fetchGlobalMetrics();
+    console.log('Fetched updated global metrics after game completion');
+  }, [fetchGlobalMetrics]);
 
   const handlePlayAgain = async () => {
     resetGame();
@@ -105,25 +115,29 @@ const FinalResultsPage = () => {
   const totalPercentage = Math.round(finalPercent);
 
   return (
-    <div className="min-h-screen bg-history-light dark:bg-history-dark p-8">
-      <div className="max-w-4xl mx-auto">
-        <div className="text-center mb-12">
-          <h1 className="text-4xl font-bold mb-4 text-history-primary dark:text-history-light">
-            Final Score
-          </h1>
-          <div className="flex justify-center items-center space-x-4 mt-2">
-            <span className="font-semibold">Accuracy:</span>
-            <Badge variant="accuracy" className="text-lg flex items-center gap-1" aria-label={`Accuracy: ${Math.round(totalPercentage)}%`}>
-              <Target className="h-4 w-4" />
-              <span>{Math.round(totalPercentage)}%</span>
-            </Badge>
-            <span className="font-semibold">XP:</span>
-            <Badge variant="xp" className="text-lg flex items-center gap-1" aria-label={`XP: ${Math.round(totalScore)}`}>
-              <Zap className="h-4 w-4" />
-              <span>{Math.round(totalScore)}</span>
-            </Badge>
+    <div className="min-h-screen bg-history-light dark:bg-history-dark flex flex-col">
+      {/* Add MainNavbar at the top */}
+      <MainNavbar onMenuClick={() => console.log('Menu clicked')} />
+      
+      <div className="flex-grow p-8">
+        <div className="max-w-4xl mx-auto">
+          <div className="text-center mb-12">
+            <h1 className="text-4xl font-bold mb-4 text-history-primary dark:text-history-light">
+              Final Score
+            </h1>
+            <div className="flex justify-center items-center space-x-4 mt-2">
+              <span className="font-semibold">Accuracy:</span>
+              <Badge variant="accuracy" className="text-lg flex items-center gap-1" aria-label={`Accuracy: ${Math.round(totalPercentage)}%`}>
+                <Target className="h-4 w-4" />
+                <span>{Math.round(totalPercentage)}%</span>
+              </Badge>
+              <span className="font-semibold">XP:</span>
+              <Badge variant="xp" className="text-lg flex items-center gap-1" aria-label={`XP: ${Math.round(totalScore)}`}>
+                <Zap className="h-4 w-4" />
+                <span>{Math.round(totalScore)}</span>
+              </Badge>
+            </div>
           </div>
-        </div>
 
         <div className="grid gap-6 mb-8">
           {images.map((image, index) => {
@@ -274,6 +288,7 @@ const FinalResultsPage = () => {
             Home
           </Button>
         </div>
+      </div>
       </div>
     </div>
   );
