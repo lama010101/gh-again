@@ -1,3 +1,4 @@
+import React from "react";
 import { Button } from "@/components/ui/button";
 import { useNavigate, useParams } from "react-router-dom";
 import { Share2, Loader, Home, MapPin, Calendar, ArrowLeft, Target, Zap } from "lucide-react";
@@ -145,24 +146,18 @@ const FinalResultsPage = () => {
             const result = roundResults?.[index];
             const yearDifference = result?.guessYear && image.year ? 
               Math.abs(result.guessYear - image.year) : 0;
-            // Calculate round accuracy using the standardized system
             let roundPercentage = 0;
-            
-            // If accuracy is already calculated, use it
             if (result?.accuracy !== undefined) {
               roundPercentage = result.accuracy;
-            } 
-            // If xpWhere and xpWhen are available, calculate from them
-            else if (result?.xpWhere !== undefined && result?.xpWhen !== undefined) {
+            } else if (result?.xpWhere !== undefined && result?.xpWhen !== undefined) {
               roundPercentage = ((result.xpWhere + result.xpWhen) / 200) * 100;
-            }
-            // Otherwise calculate from raw data
-            else if (result?.distanceKm !== null && result?.guessYear !== null) {
+            } else if (result?.distanceKm !== null && result?.guessYear !== null) {
               const locationXP = formatInteger(calculateLocationAccuracy(result.distanceKm || 0));
               const timeXP = formatInteger(calculateTimeAccuracy(result.guessYear || 0, image.year || 0));
               roundPercentage = ((locationXP + timeXP) / 200) * 100;
             }
-            
+            // Toggle state for details
+            const [open, setOpen] = React.useState(false);
             return (
               <div
                 key={image.id}
@@ -178,9 +173,16 @@ const FinalResultsPage = () => {
                   </div>
                   <div className="p-4 md:w-2/3">
                     <div className="flex justify-between items-start mb-4">
-                      <div>
+                      <div
+                        className="cursor-pointer w-full"
+                        onClick={() => setOpen(!open)}
+                        tabIndex={0}
+                        role="button"
+                        aria-expanded={open}
+                        aria-controls={`details-${image.id}`}
+                      >
                         <h3 className="text-lg font-bold text-history-primary dark:text-history-light">
-                          Round {index + 1}
+                          {image.title || ""}
                         </h3>
                         <div className="flex items-center space-x-2 mt-1">
                           <Badge variant="accuracy" className="flex items-center gap-1" aria-label={`Accuracy: ${formatInteger(roundPercentage)}%`}>
@@ -192,68 +194,69 @@ const FinalResultsPage = () => {
                             <span>{formatInteger(result?.score || 0)}</span>
                           </Badge>
                         </div>
-                        <p className="text-sm text-muted-foreground mt-1">{image.title}</p>
-                        <p className="text-xs text-muted-foreground">
+                        <p className="text-xs text-muted-foreground mt-1">
                           <Badge variant="selectedValue" className="text-xs mt-1">
                             {image.location_name} ({image.year})
                           </Badge>
                         </p>
                       </div>
                     </div>
-                    
-                    <div className="grid grid-cols-2 gap-4 mt-4">
-                      <div className="p-3 rounded-lg bg-history-primary/10 dark:bg-history-primary/20">
-                        <div className="flex items-center mb-2">
-                          <MapPin className="h-4 w-4 mr-1 text-history-primary" />
-                          <span className="text-sm font-medium text-history-primary dark:text-history-light">Where</span>
-                        </div>
-                        <div className="flex justify-between items-center">
-                          <span className="text-sm text-history-primary dark:text-history-light">
-                            {result?.distanceKm === 0 ? (
-                              <span className="text-green-600 dark:text-green-400 font-medium">Perfect!</span>
-                            ) : (
-                              result?.distanceKm == null ? '? km off' : `${formatInteger(result.distanceKm)} km off`
-                            )}
-                          </span>
-                          <div className="flex items-center gap-2">
-                            <Badge variant="accuracy" className="text-xs flex items-center gap-1" aria-label={`Location Accuracy: ${formatInteger(calculateLocationAccuracy(result?.distanceKm || 0))}%`}>
-                              <Target className="h-2 w-2" />
-                              <span>{formatInteger(calculateLocationAccuracy(result?.distanceKm || 0))}%</span>
-                            </Badge>
-                            <Badge variant="xp" className="text-xs flex items-center gap-1" aria-label={`Location XP: ${formatInteger(calculateLocationAccuracy(result?.distanceKm || 0))}`}>
-                              <Zap className="h-2 w-2" />
-                              <span>{formatInteger(calculateLocationAccuracy(result?.distanceKm || 0))}</span>
-                            </Badge>
+                    {open && (
+                      <div className="details" id={`details-${image.id}`}> 
+                        <div className="grid grid-cols-2 gap-4 mt-4">
+                          <div className="p-3 rounded-lg bg-history-primary/10 dark:bg-history-primary/20">
+                            <div className="flex items-center mb-2">
+                              <MapPin className="h-4 w-4 mr-1 text-history-primary" />
+                              <span className="text-sm font-medium text-history-primary dark:text-history-light">Where</span>
+                            </div>
+                            <div className="flex justify-between items-center">
+                              <span className="text-sm text-history-primary dark:text-history-light">
+                                {result?.distanceKm === 0 ? (
+                                  <span className="text-green-600 dark:text-green-400 font-medium">Perfect!</span>
+                                ) : (
+                                  result?.distanceKm == null ? '? km off' : `${formatInteger(result.distanceKm)} km off`
+                                )}
+                              </span>
+                              <div className="flex items-center gap-2">
+                                <Badge variant="accuracy" className="text-xs flex items-center gap-1" aria-label={`Location Accuracy: ${formatInteger(calculateLocationAccuracy(result?.distanceKm || 0))}%`}>
+                                  <Target className="h-2 w-2" />
+                                  <span>{formatInteger(calculateLocationAccuracy(result?.distanceKm || 0))}%</span>
+                                </Badge>
+                                <Badge variant="xp" className="text-xs flex items-center gap-1" aria-label={`Location XP: ${formatInteger(calculateLocationAccuracy(result?.distanceKm || 0))}`}>
+                                  <Zap className="h-2 w-2" />
+                                  <span>{formatInteger(calculateLocationAccuracy(result?.distanceKm || 0))}</span>
+                                </Badge>
+                              </div>
+                            </div>
+                          </div>
+                          <div className="p-3 rounded-lg bg-history-primary/10 dark:bg-history-primary/20">
+                            <div className="flex items-center mb-2">
+                              <Calendar className="h-4 w-4 mr-1 text-history-primary" />
+                              <span className="text-sm font-medium text-history-primary dark:text-history-light">When</span>
+                            </div>
+                            <div className="flex justify-between items-center">
+                              <span className="text-sm text-history-primary dark:text-history-light">
+                                {yearDifference === 0 ? (
+                                  <span className="text-green-600 dark:text-green-400 font-medium">Perfect!</span>
+                                ) : (
+                                  yearDifference === 0 ? (<span className="text-green-600 dark:text-green-400 font-medium">Perfect!</span>) : (`${formatInteger(yearDifference)} ${yearDifference === 1 ? 'year' : 'years'} off`)
+                                )}
+                              </span>
+                              <div className="flex items-center gap-2">
+                                <Badge variant="accuracy" className="text-xs flex items-center gap-1" aria-label={`Time Accuracy: ${formatInteger(calculateTimeAccuracy(result?.guessYear || 0, image.year || 0))}%`}>
+                                  <Target className="h-2 w-2" />
+                                  <span>{formatInteger(calculateTimeAccuracy(result?.guessYear || 0, image.year || 0))}%</span>
+                                </Badge>
+                                <Badge variant="xp" className="text-xs flex items-center gap-1" aria-label={`Time XP: ${formatInteger(result?.xpWhen ?? calculateTimeAccuracy(result?.guessYear || 0, image.year || 0))}`}>
+                                  <Zap className="h-2 w-2" />
+                                  <span>{formatInteger(result?.xpWhen ?? calculateTimeAccuracy(result?.guessYear || 0, image.year || 0))}</span>
+                                </Badge>
+                              </div>
+                            </div>
                           </div>
                         </div>
                       </div>
-                      
-                      <div className="p-3 rounded-lg bg-history-primary/10 dark:bg-history-primary/20">
-                        <div className="flex items-center mb-2">
-                          <Calendar className="h-4 w-4 mr-1 text-history-primary" />
-                          <span className="text-sm font-medium text-history-primary dark:text-history-light">When</span>
-                        </div>
-                        <div className="flex justify-between items-center">
-                          <span className="text-sm text-history-primary dark:text-history-light">
-                            {yearDifference === 0 ? (
-                              <span className="text-green-600 dark:text-green-400 font-medium">Perfect!</span>
-                            ) : (
-                              yearDifference === 0 ? (<span className="text-green-600 dark:text-green-400 font-medium">Perfect!</span>) : (`${formatInteger(yearDifference)} ${yearDifference === 1 ? 'year' : 'years'} off`)
-                            )}
-                          </span>
-                          <div className="flex items-center gap-2">
-                            <Badge variant="accuracy" className="text-xs flex items-center gap-1" aria-label={`Time Accuracy: ${formatInteger(calculateTimeAccuracy(result?.guessYear || 0, image.year || 0))}%`}>
-                              <Target className="h-2 w-2" />
-                              <span>{formatInteger(calculateTimeAccuracy(result?.guessYear || 0, image.year || 0))}%</span>
-                            </Badge>
-                            <Badge variant="xp" className="text-xs flex items-center gap-1" aria-label={`Time XP: ${formatInteger(result?.xpWhen ?? calculateTimeAccuracy(result?.guessYear || 0, image.year || 0))}`}>
-                              <Zap className="h-2 w-2" />
-                              <span>{formatInteger(result?.xpWhen ?? calculateTimeAccuracy(result?.guessYear || 0, image.year || 0))}</span>
-                            </Badge>
-                          </div>
-                        </div>
-                      </div>
-                    </div>
+                    )}
                   </div>
                 </div>
               </div>
