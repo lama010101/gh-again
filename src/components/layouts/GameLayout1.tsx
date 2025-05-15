@@ -104,7 +104,6 @@ const GameLayout1: React.FC<GameLayout1Props> = ({
           hintsAllowed={hintsAllowed}
           currentAccuracy={totalGameAccuracy} // Use actual game accuracy
           currentScore={totalGameXP} // Use actual game score
-          onMenuClick={() => console.log('Profile clicked')}
         />
       </div>
       

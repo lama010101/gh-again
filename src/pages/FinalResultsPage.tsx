@@ -5,6 +5,7 @@ import { useGame } from "@/contexts/GameContext";
 import { Badge } from "@/components/ui/badge";
 import MainNavbar from "@/components/navigation/MainNavbar";
 import { useEffect } from "react";
+import { formatInteger } from '@/utils/format';
 import { 
   calculateFinalScore,
   calculateTimeAccuracy,
@@ -98,8 +99,8 @@ const FinalResultsPage = () => {
       return { roundXP: 0, roundPercent: 0 };
     }
     
-    const locationXP = Math.round(calculateLocationAccuracy(result.distanceKm));
-    const timeXP = Math.round(calculateTimeAccuracy(result.guessYear, img.year));
+    const locationXP = formatInteger(calculateLocationAccuracy(result.distanceKm));
+    const timeXP = formatInteger(calculateTimeAccuracy(result.guessYear, img.year));
     
     return {
       roundXP: locationXP + timeXP,
@@ -111,8 +112,8 @@ const FinalResultsPage = () => {
   const { finalXP, finalPercent } = calculateFinalScore(roundScores);
   
   // Use the calculated values
-  const totalScore = Math.round(finalXP);
-  const totalPercentage = Math.round(finalPercent);
+  const totalScore = formatInteger(finalXP);
+  const totalPercentage = formatInteger(finalPercent);
 
   return (
     <div className="min-h-screen bg-history-light dark:bg-history-dark flex flex-col">
@@ -127,14 +128,14 @@ const FinalResultsPage = () => {
             </h1>
             <div className="flex justify-center items-center space-x-4 mt-2">
               <span className="font-semibold">Accuracy:</span>
-              <Badge variant="accuracy" className="text-lg flex items-center gap-1" aria-label={`Accuracy: ${Math.round(totalPercentage)}%`}>
+              <Badge variant="accuracy" className="text-lg flex items-center gap-1" aria-label={`Accuracy: ${formatInteger(totalPercentage)}%`}>
                 <Target className="h-4 w-4" />
-                <span>{Math.round(totalPercentage)}%</span>
+                <span>{formatInteger(totalPercentage)}%</span>
               </Badge>
               <span className="font-semibold">XP:</span>
-              <Badge variant="xp" className="text-lg flex items-center gap-1" aria-label={`XP: ${Math.round(totalScore)}`}>
+              <Badge variant="xp" className="text-lg flex items-center gap-1" aria-label={`XP: ${formatInteger(totalScore)}`}>
                 <Zap className="h-4 w-4" />
-                <span>{Math.round(totalScore)}</span>
+                <span>{formatInteger(totalScore)}</span>
               </Badge>
             </div>
           </div>
@@ -157,8 +158,8 @@ const FinalResultsPage = () => {
             }
             // Otherwise calculate from raw data
             else if (result?.distanceKm !== null && result?.guessYear !== null) {
-              const locationXP = Math.round(calculateLocationAccuracy(result.distanceKm || 0));
-              const timeXP = Math.round(calculateTimeAccuracy(result.guessYear || 0, image.year || 0));
+              const locationXP = formatInteger(calculateLocationAccuracy(result.distanceKm || 0));
+              const timeXP = formatInteger(calculateTimeAccuracy(result.guessYear || 0, image.year || 0));
               roundPercentage = ((locationXP + timeXP) / 200) * 100;
             }
             
@@ -182,13 +183,13 @@ const FinalResultsPage = () => {
                           Round {index + 1}
                         </h3>
                         <div className="flex items-center space-x-2 mt-1">
-                          <Badge variant="accuracy" className="flex items-center gap-1" aria-label={`Accuracy: ${Math.round(roundPercentage)}%`}>
+                          <Badge variant="accuracy" className="flex items-center gap-1" aria-label={`Accuracy: ${formatInteger(roundPercentage)}%`}>
                             <Target className="h-3 w-3" />
-                            <span>{Math.round(roundPercentage)}%</span>
+                            <span>{formatInteger(roundPercentage)}%</span>
                           </Badge>
-                          <Badge variant="xp" className="flex items-center gap-1" aria-label={`XP: ${Math.round(result?.score || 0)}`}>
+                          <Badge variant="xp" className="flex items-center gap-1" aria-label={`XP: ${formatInteger(result?.score || 0)}`}>
                             <Zap className="h-3 w-3" />
-                            <span>{Math.round(result?.score || 0)}</span>
+                            <span>{formatInteger(result?.score || 0)}</span>
                           </Badge>
                         </div>
                         <p className="text-sm text-muted-foreground mt-1">{image.title}</p>
@@ -211,17 +212,17 @@ const FinalResultsPage = () => {
                             {result?.distanceKm === 0 ? (
                               <span className="text-green-600 dark:text-green-400 font-medium">Perfect!</span>
                             ) : (
-                              `${result?.distanceKm?.toFixed(0) || '?'} km off`
+                              result?.distanceKm == null ? '? km off' : `${formatInteger(result.distanceKm)} km off`
                             )}
                           </span>
                           <div className="flex items-center gap-2">
-                            <Badge variant="accuracy" className="text-xs flex items-center gap-1" aria-label={`Location Accuracy: ${Math.round(calculateLocationAccuracy(result?.distanceKm || 0))}%`}>
+                            <Badge variant="accuracy" className="text-xs flex items-center gap-1" aria-label={`Location Accuracy: ${formatInteger(calculateLocationAccuracy(result?.distanceKm || 0))}%`}>
                               <Target className="h-2 w-2" />
-                              <span>{Math.round(calculateLocationAccuracy(result?.distanceKm || 0))}%</span>
+                              <span>{formatInteger(calculateLocationAccuracy(result?.distanceKm || 0))}%</span>
                             </Badge>
-                            <Badge variant="xp" className="text-xs flex items-center gap-1" aria-label={`Location XP: ${Math.round(calculateLocationAccuracy(result?.distanceKm || 0))}`}>
+                            <Badge variant="xp" className="text-xs flex items-center gap-1" aria-label={`Location XP: ${formatInteger(calculateLocationAccuracy(result?.distanceKm || 0))}`}>
                               <Zap className="h-2 w-2" />
-                              <span>{Math.round(calculateLocationAccuracy(result?.distanceKm || 0))}</span>
+                              <span>{formatInteger(calculateLocationAccuracy(result?.distanceKm || 0))}</span>
                             </Badge>
                           </div>
                         </div>
@@ -237,17 +238,17 @@ const FinalResultsPage = () => {
                             {yearDifference === 0 ? (
                               <span className="text-green-600 dark:text-green-400 font-medium">Perfect!</span>
                             ) : (
-                              getTimeDifferenceDescription(result?.guessYear || 0, image.year || 0)
+                              yearDifference === 0 ? (<span className="text-green-600 dark:text-green-400 font-medium">Perfect!</span>) : (`${formatInteger(yearDifference)} ${yearDifference === 1 ? 'year' : 'years'} off`)
                             )}
                           </span>
                           <div className="flex items-center gap-2">
-                            <Badge variant="accuracy" className="text-xs flex items-center gap-1" aria-label={`Time Accuracy: ${Math.round(calculateTimeAccuracy(result?.guessYear || 0, image.year || 0))}%`}>
+                            <Badge variant="accuracy" className="text-xs flex items-center gap-1" aria-label={`Time Accuracy: ${formatInteger(calculateTimeAccuracy(result?.guessYear || 0, image.year || 0))}%`}>
                               <Target className="h-2 w-2" />
-                              <span>{Math.round(calculateTimeAccuracy(result?.guessYear || 0, image.year || 0))}%</span>
+                              <span>{formatInteger(calculateTimeAccuracy(result?.guessYear || 0, image.year || 0))}%</span>
                             </Badge>
-                            <Badge variant="xp" className="text-xs flex items-center gap-1" aria-label={`Time XP: ${Math.round(calculateTimeAccuracy(result?.guessYear || 0, image.year || 0))}`}>
+                            <Badge variant="xp" className="text-xs flex items-center gap-1" aria-label={`Time XP: ${formatInteger(result?.xpWhen ?? calculateTimeAccuracy(result?.guessYear || 0, image.year || 0))}`}>
                               <Zap className="h-2 w-2" />
-                              <span>{result?.xpWhen || Math.round(calculateTimeAccuracy(result?.guessYear || 0, image.year || 0))}</span>
+                              <span>{formatInteger(result?.xpWhen ?? calculateTimeAccuracy(result?.guessYear || 0, image.year || 0))}</span>
                             </Badge>
                           </div>
                         </div>

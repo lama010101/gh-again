@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react';
+import { formatInteger } from '@/utils/format';
 import { Button } from "@/components/ui/button";
 // Remove Progress component if no longer used
 // import { Progress } from "@/components/ui/progress";
@@ -334,7 +335,7 @@ const ResultsLayout2: React.FC<ResultsLayout2Props> = ({
                   {result.distanceKm === 0 ? (
                     <span className="text-green-600 dark:text-green-400 font-medium">Perfect!</span>
                   ) : (
-                    `${result.distanceKm.toFixed(0)} km off`
+                    `${formatInteger(result.distanceKm)} km off`
                   )}
                 </div>
               </div>
@@ -343,7 +344,7 @@ const ResultsLayout2: React.FC<ResultsLayout2Props> = ({
                 <div className="text-center md:text-left mb-2 md:mb-0">
                   <div className="font-medium">
                     <span className="text-foreground">Correct: </span>
-                    <Badge variant="selectedValue" className="ml-1">
+                    <Badge variant="selectedValue" className="ml-1 text-xl">
                       {result.locationName}
                     </Badge>
                   </div>
@@ -352,14 +353,14 @@ const ResultsLayout2: React.FC<ResultsLayout2Props> = ({
                   <div className="text-center">
                     <Badge variant="accuracy" className="text-sm flex items-center gap-1">
                       <Target className="h-3 w-3" />
-                      {result.locationAccuracy}%
+                      {formatInteger(result.locationAccuracy)}%
                     </Badge>
                     <div className="text-xs text-muted-foreground mt-1">Accuracy</div>
                   </div>
                   <div className="text-center">
                     <Badge variant="xp" className="text-sm flex items-center gap-1">
                       <Zap className="h-3 w-3" />
-                      +{result.xpWhere}
+                      +{formatInteger(result.xpWhere)}
                     </Badge>
                     <div className="text-xs text-muted-foreground mt-1">XP</div>
                   </div>
@@ -418,7 +419,7 @@ const ResultsLayout2: React.FC<ResultsLayout2Props> = ({
                   When
                 </h2>
                 <Badge variant="hint" className="text-sm">
-                  {result.timeDifferenceDesc}
+                  {result.yearDifference === 0 ? <span className="text-green-600 dark:text-green-400 font-medium">Perfect!</span> : `${formatInteger(Math.abs(result.yearDifference))} ${Math.abs(result.yearDifference) === 1 ? 'year' : 'years'} off`}
                 </Badge>
               </div>
               
@@ -426,7 +427,7 @@ const ResultsLayout2: React.FC<ResultsLayout2Props> = ({
                 <div>Your guess: <span className="font-medium">{result.guessYear}</span></div>
                 <div>
                   <span className="text-foreground">Correct: </span>
-                  <Badge variant="selectedValue" className="ml-1">
+                  <Badge variant="selectedValue" className="ml-1 text-xl">
                     {result.eventYear}
                   </Badge>
                 </div>
@@ -436,14 +437,14 @@ const ResultsLayout2: React.FC<ResultsLayout2Props> = ({
                 <div className="text-center">
                   <Badge variant="accuracy" className="text-sm flex items-center gap-1">
                     <Target className="h-3 w-3" />
-                    {result.timeAccuracy}%
+                    {formatInteger(result.timeAccuracy)}%
                   </Badge>
                   <div className="text-xs text-muted-foreground mt-1">Accuracy</div>
                 </div>
                 <div className="text-center">
                   <Badge variant="xp" className="text-sm flex items-center gap-1">
                     <Zap className="h-3 w-3" />
-                    +{result.xpWhen}
+                    +{formatInteger(result.xpWhen)}
                   </Badge>
                   <div className="text-xs text-muted-foreground mt-1">XP</div>
                 </div>
@@ -461,7 +462,7 @@ const ResultsLayout2: React.FC<ResultsLayout2Props> = ({
                   When
                 </h2>
                 <Badge variant="hint" className="text-sm">
-                  {result.timeDifferenceDesc}
+                  {result.yearDifference === 0 ? <span className="text-green-600 dark:text-green-400 font-medium">Perfect!</span> : `${formatInteger(Math.abs(result.yearDifference))} ${Math.abs(result.yearDifference) === 1 ? 'year' : 'years'} off`}
                 </Badge>
               </div>
               
@@ -469,7 +470,7 @@ const ResultsLayout2: React.FC<ResultsLayout2Props> = ({
                 <div>Your guess: <span className="font-medium">{result.guessYear}</span></div>
                 <div>
                   <span className="text-foreground">Correct: </span>
-                  <Badge variant="selectedValue" className="ml-1">
+                  <Badge variant="selectedValue" className="ml-1 text-xl">
                     {result.eventYear}
                   </Badge>
                 </div>
@@ -479,14 +480,14 @@ const ResultsLayout2: React.FC<ResultsLayout2Props> = ({
                 <div className="text-center">
                   <Badge variant="accuracy" className="text-sm flex items-center gap-1">
                     <Target className="h-3 w-3" />
-                    {result.timeAccuracy}%
+                    {formatInteger(result.timeAccuracy)}%
                   </Badge>
                   <div className="text-xs text-muted-foreground mt-1">Accuracy</div>
                 </div>
                 <div className="text-center">
                   <Badge variant="xp" className="text-sm flex items-center gap-1">
                     <Zap className="h-3 w-3" />
-                    +{result.xpWhen}
+                    +{formatInteger(result.xpWhen)}
                   </Badge>
                   <div className="text-xs text-muted-foreground mt-1">XP</div>
                 </div>

@@ -1,4 +1,5 @@
 import React from 'react';
+import { formatInteger } from '@/utils/format';
 import { Button } from "@/components/ui/button";
 import { Award, Share2 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
@@ -16,10 +17,10 @@ const ScoreCard: React.FC<ScoreCardProps> = ({
 }) => {
   // Calculate overall accuracy as the average of location and time accuracy
   // Round all values to integers
-  const roundedLocationAccuracy = Math.round(locationAccuracy);
-  const roundedTimeAccuracy = Math.round(timeAccuracy);
-  const roundedXpTotal = Math.round(xpTotal);
-  const overallAccuracy = Math.round((roundedLocationAccuracy + roundedTimeAccuracy) / 2);
+  const roundedLocationAccuracy = formatInteger(locationAccuracy);
+  const roundedTimeAccuracy = formatInteger(timeAccuracy);
+  const roundedXpTotal = formatInteger(xpTotal);
+  const overallAccuracy = formatInteger((formatInteger(locationAccuracy) + formatInteger(timeAccuracy)) / 2);
   const isPerfectScore = roundedLocationAccuracy >= 95 && roundedTimeAccuracy >= 95;
   
   return (
@@ -44,11 +45,11 @@ const ScoreCard: React.FC<ScoreCardProps> = ({
       <div className="space-y-2">
         <div className="flex items-center justify-between">
           <span className="text-sm">Where:</span>
-          <Badge variant="orange">{roundedLocationAccuracy}% Correct</Badge>
+          <Badge variant="orange" className="text-xl">{roundedLocationAccuracy}% Correct</Badge>
         </div>
         <div className="flex items-center justify-between">
           <span className="text-sm">When:</span>
-          <Badge variant="orange">{roundedTimeAccuracy}% Correct</Badge>
+          <Badge variant="orange" className="text-xl">{roundedTimeAccuracy}% Correct</Badge>
         </div>
       </div>
       

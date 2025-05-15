@@ -1,11 +1,6 @@
 
 import React from 'react';
-import { 
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
+import Popup from '@/components/ui/Popup';
 import { Button } from "@/components/ui/button";
 import { MapPin, Clock, HelpCircle } from "lucide-react";
 import { HintType } from "@/hooks/useHint";
@@ -26,13 +21,14 @@ const HintModal = ({
   onSelectHint 
 }: HintModalProps) => {
   return (
-    <Dialog open={isOpen} onOpenChange={onOpenChange}>
-      <DialogContent className="bg-gradient-to-br from-gray-900 to-gray-800 border border-white/10 text-white w-[90%] max-w-md">
-        <DialogHeader>
-          <DialogTitle className="text-xl font-bold text-center text-white">
+    <Popup isOpen={isOpen} onClose={() => onOpenChange(false)} ariaLabelledBy="hint-modal-title">
+      {/* Content that was previously in DialogContent now goes here, styled by Popup.module.css */}
+      {/* The className on DialogContent is now handled by Popup.module.css's .panel style */}
+      <div className="text-center">
+        <h2 id="hint-modal-title" className="text-xl font-bold text-white mb-4">
             {selectedHintType ? "Your Hint" : "Choose Your Hint"}
-          </DialogTitle>
-        </DialogHeader>
+        </h2>
+      </div>
 
         <div className="mt-4">
           {selectedHintType ? (
@@ -99,8 +95,8 @@ const HintModal = ({
             {selectedHintType ? "Continue Guessing" : "Cancel"}
           </Button>
         </div>
-      </DialogContent>
-    </Dialog>
+      {/* Closing Popup tag */}
+    </Popup>
   );
 };
 
