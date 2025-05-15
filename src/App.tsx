@@ -103,8 +103,9 @@ const App = () => {
                       
                       <Route path="game/room/:roomId/round/:roundNumber" element={<GameRoundPage />} />
                       <Route path="game/room/:roomId/round/:roundNumber/results" element={<RoundResultsPage />} />
-                      <Route path="game/room/:roomId/final" element={<FinalResultsPage />} />
                   </Route>
+                  {/* Final Results page with its own MainNavbar */}
+                  <Route path="/test/game/room/:roomId/final" element={<FinalResultsPage />} />
                   <Route path="*" element={<Navigate to="/test" replace />} />
                 </Routes>
                 </GameProvider>

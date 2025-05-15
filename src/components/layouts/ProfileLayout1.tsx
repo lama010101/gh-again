@@ -12,8 +12,9 @@ import MainNavbar from '@/components/navigation/MainNavbar';
 import { useAuth } from '@/contexts/AuthContext';
 import { useGame } from '@/contexts/GameContext';
 import { useNavigate } from 'react-router-dom';
-import { Badge as BadgeType, BadgeEvaluation } from '@/utils/badges/types';
+import { Badge as BadgeType, BadgeEvaluation, BadgeRequirementCode } from '@/utils/badges/types';
 import { evaluateUserBadges } from '@/utils/badges/badgeService';
+import { supabase } from '@/integrations/supabase/client';
 import { 
   fetchUserProfile, 
   fetchUserStats, 
@@ -49,7 +50,7 @@ const ProfileLayout1 = () => {
   const [profile, setProfile] = useState<UserProfile | null>(null);
   const [stats, setStats] = useState<UserStats | null>(null);
   const [settings, setSettings] = useState<UserSettings | null>(null);
-  const [metrics, setMetrics] = useState<UserMetrics | null>(null);
+  const [metrics, setMetrics] = useState<Record<BadgeRequirementCode, number> | null>(null);
   const [avatars, setAvatars] = useState<{ id: string; name: string; image_url: string }[]>([]);
   const [badgeEvaluations, setBadgeEvaluations] = useState<BadgeEvaluation[]>([]);
   
@@ -106,7 +107,7 @@ const ProfileLayout1 = () => {
               };
               
               setStats(userStats);
-              setMetrics(storedMetrics);
+              setMetrics(getDefaultMetrics(userStats));
               
               // Evaluate badges based on metrics
               const evaluations = await evaluateUserBadges(user.id, storedMetrics);
@@ -178,7 +179,7 @@ const ProfileLayout1 = () => {
     challenge_accuracy: 0,
   });
   
-  const getDefaultMetrics = (stats?: UserStats): UserMetrics => ({
+  const getDefaultMetrics = (stats?: UserStats): Record<BadgeRequirementCode, number> => ({
     games_played: stats?.games_played || 0,
     perfect_rounds: 0,
     perfect_games: stats?.perfect_scores || 0,
@@ -204,67 +205,104 @@ const ProfileLayout1 = () => {
         const storedMetricsJson = localStorage.getItem(storageKey);
         
         if (storedMetricsJson) {
-          try {
-            const storedMetrics = JSON.parse(storedMetricsJson);
-            
-            // Convert stored metrics to UserStats format
-            const userStats: UserStats = {
-              gamesPlayed: storedMetrics.games_played || 0,
-              avgAccuracy: storedMetrics.overall_accuracy || 0,
-              bestAccuracy: storedMetrics.overall_accuracy || 0,
-              perfectScores: storedMetrics.perfect_games || 0,
-              totalXp: storedMetrics.xp_total || 0,
-              globalRank: 0,
-              timeAccuracy: storedMetrics.time_accuracy || 0,
-              locationAccuracy: storedMetrics.location_accuracy || 0,
-              challengeAccuracy: 0
-            };
-            
-            const userProfile = await fetchUserProfile(user.id);
-            const userSettings = await fetchUserSettings(user.id);
-            const allAvatars = await fetchAvatars();
-            
-            setProfile(userProfile);
-            setStats(userStats);
-            setSettings(userSettings);
-            setMetrics(storedMetrics);
-            setAvatars(allAvatars);
-            
-            // Evaluate badges based on metrics
-            const evaluations = await evaluateUserBadges(user.id, storedMetrics);
-            setBadgeEvaluations(evaluations);
-          } catch (e) {
-            console.error('Error refreshing stored metrics for guest user:', e);
-          }
+          const storedMetrics = JSON.parse(storedMetricsJson);
+          
+          // Convert stored metrics to UserStats format
+          const userStats: UserStats = {
+            games_played: storedMetrics.games_played || 0,
+            avg_accuracy: storedMetrics.overall_accuracy || 0,
+            best_accuracy: storedMetrics.overall_accuracy || 0,
+            perfect_scores: storedMetrics.perfect_games || 0,
+            total_xp: storedMetrics.xp_total || 0,
+            global_rank: 0,
+            time_accuracy: storedMetrics.time_accuracy || 0,
+            location_accuracy: storedMetrics.location_accuracy || 0,
+            challenge_accuracy: 0
+          };
+          
+          const [userProfile, userSettings, allAvatars] = await Promise.all([
+            fetchUserProfile(user.id),
+            fetchUserSettings(user.id),
+            fetchAvatars()
+          ]);
+          
+          setProfile(userProfile);
+          setStats(userStats);
+          setSettings(userSettings);
+          setMetrics(getDefaultMetrics(userStats));
+          setAvatars(allAvatars);
+          
+          // Evaluate badges based on metrics
+          const evaluations = await evaluateUserBadges(user.id, storedMetrics);
+          setBadgeEvaluations(evaluations);
+        } else {
+          // No stored metrics found, using defaults
+          const defaultStats = getDefaultStats();
+          setStats(defaultStats);
+          setMetrics(getDefaultMetrics(defaultStats));
         }
       } else {
-        // For regular users, use Supabase
-        const [
-          userProfile,
-          userStats,
-          userSettings,
-          userMetrics,
-          allAvatars
-        ] = await Promise.all([
+        // For regular users, refresh all data
+        const [userProfile, userStats, userSettings, allAvatars] = await Promise.all([
           fetchUserProfile(user.id),
           fetchUserStats(user.id),
           fetchUserSettings(user.id),
-          fetchUserMetrics(user.id),
           fetchAvatars()
         ]);
         
         setProfile(userProfile);
         setStats(userStats);
         setSettings(userSettings);
-        setMetrics(userMetrics);
+        setMetrics(getDefaultMetrics(userStats));
         setAvatars(allAvatars);
         
         // Evaluate badges based on metrics
-        const evaluations = await evaluateUserBadges(user.id, userMetrics);
+        const evaluations = await evaluateUserBadges(user.id, getDefaultMetrics(userStats));
         setBadgeEvaluations(evaluations);
       }
     } catch (error) {
       console.error('Error refreshing profile data:', error);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+  
+  // Function to convert guest to regular account
+  const convertGuestToRegular = async (email: string, password: string) => {
+    if (!user?.isGuest) return false;
+    
+    try {
+      setIsLoading(true);
+      
+      // 1. Sign up the user
+      const { error: signUpError } = await supabase.auth.signUp({
+        email,
+        password
+      });
+      
+      if (signUpError) throw signUpError;
+      
+      // 2. Migrate guest data to new account
+      const storageKey = `user_metrics_${user.id}`;
+      const storedMetricsJson = localStorage.getItem(storageKey);
+      
+      if (storedMetricsJson) {
+        const storedMetrics = JSON.parse(storedMetricsJson);
+        await supabase
+          .from('user_metrics')
+          .insert({
+            user_id: user.id,
+            ...storedMetrics
+          });
+      }
+      
+      // 3. Clear guest data
+      localStorage.removeItem(storageKey);
+      
+      return true;
+    } catch (error) {
+      console.error('Error converting guest account:', error);
+      return false;
     } finally {
       setIsLoading(false);
     }
@@ -312,15 +350,15 @@ const ProfileLayout1 = () => {
           
           <TabsContent value="stats" className="mt-0">
             <StatsTab stats={stats || {
-              gamesPlayed: 0,
-              avgAccuracy: 0,
-              bestAccuracy: 0,
-              perfectScores: 0,
-              totalXp: 0,
-              globalRank: 0,
-              timeAccuracy: 0,
-              locationAccuracy: 0,
-              challengeAccuracy: 0
+              games_played: 0,
+              avg_accuracy: 0,
+              best_accuracy: 0,
+              perfect_scores: 0,
+              total_xp: 0,
+              global_rank: 0,
+              time_accuracy: 0,
+              location_accuracy: 0,
+              challenge_accuracy: 0
             }} isLoading={statsLoading} />
           </TabsContent>
           

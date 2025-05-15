@@ -34,9 +34,9 @@ const GameOverlayHUD: React.FC<GameOverlayHUDProps> = ({
   const timerBadgeClass = isTimeRunningOut ? "bg-red-600 hover:bg-red-700" : "bg-primary";
 
   return (
-    <div className="absolute top-4 right-4 z-40 flex flex-col items-end space-y-2">
-      {/* Score and accuracy */}
-      <div className="flex space-x-2 bg-black/30 backdrop-blur-sm p-2 rounded-lg">
+    <div className="absolute top-4 z-40 flex justify-between w-full px-4">
+      {/* Left side - Score and accuracy */}
+      <div className="flex bg-black/30 backdrop-blur-sm p-2 rounded-lg space-x-2">
         <Badge variant="accuracy" className="flex items-center gap-1" aria-label={`Accuracy: ${Math.round(currentAccuracy)}%`}>
           <Target className="h-3 w-3" />
           <span>{Math.round(currentAccuracy)}%</span>
@@ -45,6 +45,10 @@ const GameOverlayHUD: React.FC<GameOverlayHUDProps> = ({
           <Zap className="h-3 w-3" />
           <span>{Math.round(currentScore)}</span>
         </Badge>
+      </div>
+      
+      {/* Right side - Avatar/menu button */}
+      <div className="flex bg-black/30 backdrop-blur-sm p-2 rounded-lg">
         <Button 
           variant="ghost" 
           size="icon"

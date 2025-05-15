@@ -16,31 +16,16 @@ const TestLayout = () => {
   
   return (
     <div className="min-h-screen flex flex-col bg-history-light dark:bg-history-dark">
-      <nav className="sticky top-0 z-50 bg-history-primary text-white shadow-md">
-        <div className="max-w-7xl mx-auto px-4">
-          <div className="flex items-center justify-between h-16">
-            <div className="flex items-center">
-              {!isGameContext ? (
-                // Show Logo on non-game pages
+      {/* Navbar only shown for non-game pages */}
+      {!isGameContext && (
+        <nav className="sticky top-0 z-50 bg-history-primary text-white shadow-md">
+          <div className="max-w-7xl mx-auto px-4">
+            <div className="flex items-center justify-between h-16">
+              <div className="flex items-center">
                 <Logo />
-              ) : (
-                // Show game score during game
-                <div className="flex items-center gap-2">
-                  <span className="mr-2">This game:</span>
-                  <Badge variant="accuracy" className="flex items-center gap-1 text-sm" aria-label={`Accuracy: ${Math.round(totalGameAccuracy)}%`}>
-                    <Target className="h-4 w-4" />
-                    <span>{Math.round(totalGameAccuracy)}%</span>
-                  </Badge>
-                  <Badge variant="xp" className="flex items-center gap-1 text-sm" aria-label={`XP: ${Math.round(totalGameXP)}`}>
-                    <Zap className="h-4 w-4" />
-                    <span>{Math.round(totalGameXP)}</span>
-                  </Badge>
-                </div>
-              )}
-            </div>
-            
-            {!isGameContext && (
-              // Show global stats outside of games
+              </div>
+              
+              {/* Show global stats outside of games */}
               <div className="flex items-center gap-2">
                 <Badge variant="accuracy" className="flex items-center gap-1 text-sm" aria-label={`Global Accuracy: ${Math.round(globalAccuracy)}%`}>
                   <Target className="h-4 w-4" />
@@ -51,12 +36,12 @@ const TestLayout = () => {
                   <span>{Math.round(globalXP)}</span>
                 </Badge>
               </div>
-            )}
-            
-            <NavProfile />
+              
+              <NavProfile />
+            </div>
           </div>
-        </div>
-      </nav>
+        </nav>
+      )}
       <main className="flex-grow">
         <Outlet />
       </main>
