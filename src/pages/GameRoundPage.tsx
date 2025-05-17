@@ -7,6 +7,7 @@ import { useToast } from "@/components/ui/use-toast";
 import SubmitGuessButton from '@/components/game/SubmitGuessButton';
 import { Button } from '@/components/ui/button';
 import { SegmentedProgressBar } from '@/components/ui';
+import { ConfirmNavigationDialog } from '@/components/game/ConfirmNavigationDialog';
 import { useHint } from '@/hooks/useHint';
 import { calculateRoundScore as calculateHintPenalty } from '@/utils/scoring';
 import { 
@@ -21,6 +22,18 @@ import {
 const GameRoundPage = () => {
   const navigate = useNavigate();
   const { roomId, roundNumber: roundNumberStr } = useParams<{ roomId: string; roundNumber: string }>();
+  const [showConfirmDialog, setShowConfirmDialog] = useState(false);
+  const [pendingNavigation, setPendingNavigation] = useState<(() => void) | null>(null);
+
+  const handleNavigateHome = useCallback(() => {
+    navigate('/test');
+  }, [navigate]);
+
+  const confirmNavigation = useCallback((navigateTo: () => void) => {
+    setPendingNavigation(() => navigateTo);
+    setShowConfirmDialog(true);
+  }, []);
+
   const {
     images,
     isLoading: isContextLoading,
@@ -145,15 +158,24 @@ const GameRoundPage = () => {
     }
   }, [currentGuess, imageForRound, toast, roundNumber, selectedYear, recordRoundResult, currentRoundIndex, navigate, roomId, hintsUsedThisRound]);
 
-  const handleTimeout = () => {
+  const handleTimeout = useCallback(() => {
     console.log("Timer expired. Auto-submitting guess.");
+    // Prevent multiple submissions
+    if (isSubmitting) return;
+    
     toast({
         title: "Time's Up!",
         description: "Submitting your current guess automatically.",
         variant: "info",
+        className: "bg-white/70 text-black border border-gray-200",
     });
+    
+    // Disable the timer to prevent multiple submissions
+    setIsTimerActive(false);
+    
+    // Submit the guess
     handleSubmitGuess();
-  };
+  }, [handleSubmitGuess, isSubmitting]);
 
   // Loading state from context
   if (isContextLoading) {
@@ -174,7 +196,10 @@ const GameRoundPage = () => {
         <div className="text-center p-6 bg-white dark:bg-gray-800 rounded-lg shadow-md">
           <h2 className="text-xl font-semibold text-red-600 mb-3">Error Loading Game</h2>
           <p className="text-muted-foreground mb-4">{contextError}</p>
-          <button onClick={() => navigate('/test')} className="px-4 py-2 bg-history-primary text-white rounded hover:bg-history-primary/90">
+          <button 
+            onClick={() => confirmNavigation(handleNavigateHome)}
+            className="px-4 py-2 bg-history-primary text-white rounded hover:bg-history-primary/90"
+          >
             Return Home
           </button>
         </div>
@@ -189,9 +214,12 @@ const GameRoundPage = () => {
         <div className="text-center p-6 bg-white dark:bg-gray-800 rounded-lg shadow-md">
           <h2 className="text-xl font-semibold text-yellow-600 mb-3">Image Not Found</h2>
           <p className="text-muted-foreground">Could not load image for round {roundNumber}.</p>
-           <button onClick={() => navigate('/test')} className="px-4 py-2 bg-history-primary text-white rounded hover:bg-history-primary/90">
-            Return Home
-          </button>
+           <button 
+             onClick={() => confirmNavigation(handleNavigateHome)}
+             className="px-4 py-2 bg-history-primary text-white rounded hover:bg-history-primary/90"
+           >
+             Return Home
+           </button>
         </div>
       </div>
     );
@@ -220,27 +248,39 @@ const GameRoundPage = () => {
         remainingTime={remainingTime}
         setRemainingTime={setRemainingTime}
         isTimerActive={isTimerActive}
+        onNavigateHome={handleNavigateHome}
+        onConfirmNavigation={confirmNavigation}
       />
 
-      {/* Render the Submit Guess Button separately, fixed or absolutely positioned */}
+      {/* Submit Guess Button */}
       <div className="fixed bottom-0 left-0 right-0 p-4 bg-gradient-to-t from-background via-background to-transparent z-10 flex justify-center">
-          {/* Use the standard Button component, triggering our handleSubmitGuess */}
-          <Button
-              onClick={handleSubmitGuess}
-              disabled={isSubmitting}
-              size="lg"
-              className="w-full max-w-md shadow-lg"
-          >
-              {isSubmitting ? (
-                  <>
-                      <Loader className="mr-2 h-4 w-4 animate-spin" />
-                      Submitting...
-                  </>
-              ) : (
-                  'Submit Guess'
-              )}
-          </Button>
-      </div> {/* Closing tag for the fixed button container */}
+        <Button
+          onClick={handleSubmitGuess}
+          disabled={isSubmitting || (roundTimerSec > 0 && remainingTime <= 0)}
+          size="lg"
+          className={`w-full max-w-md shadow-lg ${
+            roundTimerSec > 0 && remainingTime <= 0 ? 'opacity-75 cursor-not-allowed' : ''
+          }`}
+        >
+          {isSubmitting ? (
+            <>
+              <Loader className="mr-2 h-4 w-4 animate-spin" />
+              Submitting...
+            </>
+          ) : (
+            roundTimerSec > 0 && remainingTime <= 0 ? 'Time\'s Up!' : 'Submit Guess'
+          )}
+        </Button>
+      </div>
+      {/* Confirmation Dialog */}
+      <ConfirmNavigationDialog
+        isOpen={showConfirmDialog}
+        onClose={() => setShowConfirmDialog(false)}
+        onConfirm={() => {
+          setShowConfirmDialog(false);
+          pendingNavigation?.();
+        }}
+      />
     </div> // Closing tag for the main container
   );
 };

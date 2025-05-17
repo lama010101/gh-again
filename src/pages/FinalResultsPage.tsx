@@ -7,6 +7,8 @@ import { Badge } from "@/components/ui/badge";
 import MainNavbar from "@/components/navigation/MainNavbar";
 import { useEffect } from "react";
 import { formatInteger } from '@/utils/format';
+import { updateUserMetrics } from '@/utils/profile/profileService';
+import { supabase } from '@/integrations/supabase/client';
 import { 
   calculateFinalScore,
   calculateTimeAccuracy,
@@ -26,12 +28,70 @@ const FinalResultsPage = () => {
     fetchGlobalMetrics
   } = useGame();
   
-  // Ensure global score is updated when the final results page is loaded
+  // Update user metrics and fetch global scores when the final results page is loaded
   useEffect(() => {
-    // Fetch updated global metrics after game completion
-    fetchGlobalMetrics();
-    console.log('Fetched updated global metrics after game completion');
-  }, [fetchGlobalMetrics]);
+    const updateMetricsAndFetchGlobal = async () => {
+      if (roundResults.length === 0 || !images.length) return;
+
+      // Calculate final score and percentage
+      const roundScores = roundResults.map((result, index) => {
+        const img = images[index];
+        if (!result || !img) return { roundXP: 0, roundPercent: 0 };
+        
+        const locationXP = calculateLocationAccuracy(result.distanceKm || 0);
+        const timeXP = calculateTimeAccuracy(result.guessYear || 0, img.year || 0);
+        
+        return {
+          roundXP: locationXP + timeXP,
+          roundPercent: ((locationXP + timeXP) / 200) * 100
+        };
+      });
+      
+      const { finalXP, finalPercent } = calculateFinalScore(roundScores);
+      
+      // Check if this was a perfect game
+      const isPerfectGame = finalPercent === 100;
+      
+      // Calculate average location and time accuracy
+      const locationAccuracySum = roundResults.reduce((sum, result) => {
+        return sum + calculateLocationAccuracy(result.distanceKm || 0);
+      }, 0);
+      
+      const timeAccuracySum = roundResults.reduce((sum, result, index) => {
+        const img = images[index];
+        return sum + calculateTimeAccuracy(result.guessYear || 0, img.year || 0);
+      }, 0);
+      
+      const avgLocationAccuracy = locationAccuracySum / roundResults.length;
+      const avgTimeAccuracy = timeAccuracySum / roundResults.length;
+      
+      // Check for bullseyes
+      const yearBullseye = roundResults.some(result => result.guessYear === images[result.roundIndex]?.year);
+      const locationBullseye = roundResults.some(result => (result.distanceKm || 0) < 10);
+      
+      // Get current user
+      const { data: { user } } = await supabase.auth.getUser();
+      
+      if (user) {
+        // Update user metrics in Supabase
+        await updateUserMetrics(user.id, {
+          gameAccuracy: finalPercent,
+          gameXP: finalXP,
+          isPerfectGame,
+          locationAccuracy: avgLocationAccuracy,
+          timeAccuracy: avgTimeAccuracy,
+          yearBullseye,
+          locationBullseye
+        });
+        
+        // Fetch updated global metrics after updating
+        fetchGlobalMetrics();
+        console.log('Updated user metrics and fetched global metrics after game completion');
+      }
+    };
+    
+    updateMetricsAndFetchGlobal();
+  }, [roundResults, images, fetchGlobalMetrics]);
 
   const handlePlayAgain = async () => {
     resetGame();

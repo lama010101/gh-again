@@ -98,47 +98,69 @@ export const GameProvider: React.FC<GameProviderProps> = ({ children }) => {
   // Function to fetch global metrics from Supabase or localStorage
   const fetchGlobalMetrics = useCallback(async () => {
     try {
-      const { data: { user } } = await supabase.auth.getUser();
-      
-      if (!user) {
-        console.warn('No user found when fetching global metrics');
-        return;
-      }
-      
-      // For guest users, get metrics from localStorage
-      if (user.app_metadata?.provider === 'guest') {
-        const storageKey = `user_metrics_${user.id}`;
-        const storedMetricsJson = localStorage.getItem(storageKey);
-        
-        if (storedMetricsJson) {
-          try {
+      // First check for guest session in localStorage
+      const guestSession = localStorage.getItem('guestSession');
+      if (guestSession) {
+        try {
+          const guestUser = JSON.parse(guestSession);
+          const storageKey = `user_metrics_${guestUser.id}`;
+          const storedMetricsJson = localStorage.getItem(storageKey);
+          
+          if (storedMetricsJson) {
             const storedMetrics = JSON.parse(storedMetricsJson);
             setGlobalAccuracy(storedMetrics.overall_accuracy || 0);
             setGlobalXP(storedMetrics.xp_total || 0);
-          } catch (e) {
-            console.error('Error parsing stored metrics:', e);
+            return; // Exit early if we found guest metrics
+          } else {
+            // Initialize metrics for new guest users
+            setGlobalAccuracy(0);
+            setGlobalXP(0);
+            return; // Exit early
           }
+        } catch (e) {
+          console.log('Error parsing guest metrics:', e);
+          // Continue to check authenticated user
         }
-      } else {
-        // For authenticated users, fetch from Supabase
-        const { data: metrics, error: fetchError } = await supabase
-          .from('user_metrics')
-          .select('overall_accuracy, xp_total')
-          .eq('user_id', user.id)
-          .single();
-        
-        if (fetchError) {
+      }
+      
+      // If no guest session or error parsing it, try authenticated user
+      const { data: { user } } = await supabase.auth.getUser();
+      
+      if (!user) {
+        // This is expected for guest users or when not logged in
+        // Initialize with zeros instead of warning
+        setGlobalAccuracy(0);
+        setGlobalXP(0);
+        return;
+      }
+      
+      // For authenticated users, fetch from Supabase
+      const { data: metrics, error: fetchError } = await supabase
+        .from('user_metrics')
+        .select('overall_accuracy, xp_total')
+        .eq('user_id', user.id)
+        .single();
+      
+      if (fetchError) {
+        // Handle case where user exists but has no metrics yet
+        if (fetchError.code === 'PGRST116') { // Not found error
+          setGlobalAccuracy(0);
+          setGlobalXP(0);
+        } else {
           console.error('Error fetching user metrics:', fetchError);
-          return;
         }
-        
-        if (metrics) {
-          setGlobalAccuracy(metrics.overall_accuracy || 0);
-          setGlobalXP(metrics.xp_total || 0);
-        }
+        return;
+      }
+      
+      if (metrics) {
+        setGlobalAccuracy(metrics.overall_accuracy || 0);
+        setGlobalXP(metrics.xp_total || 0);
       }
     } catch (err) {
       console.error('Error in fetchGlobalMetrics:', err);
+      // Set defaults on error
+      setGlobalAccuracy(0);
+      setGlobalXP(0);
     }
   }, []);
 
@@ -212,6 +234,8 @@ export const GameProvider: React.FC<GameProviderProps> = ({ children }) => {
         .from('images')
         // Select fields that exist in the DB schema
         .select('id, title, description, latitude, longitude, year, image_url, location_name') 
+        // Only fetch production-ready images
+        .eq('ready', true)
         // Remove the .order() clause
         .limit(20); // Fetch more images than needed
         
@@ -264,11 +288,6 @@ export const GameProvider: React.FC<GameProviderProps> = ({ children }) => {
 
       setImages(processedImages);
       console.log("Selected 5 images stored in context:", processedImages);
-      setIsLoading(false);
-
-      // Navigate to the first round (path updated to be relative to /test layout)
-      console.log(`Navigating to round 1 for room ${newRoomId} under /test`);
-      navigate(`/test/game/room/${newRoomId}/round/1`);
 
       // Save game settings to local storage for persistence
       localStorage.setItem('gh_game_settings', JSON.stringify({
@@ -277,12 +296,22 @@ export const GameProvider: React.FC<GameProviderProps> = ({ children }) => {
       }));
 
       console.log(`Game settings: ${hintsAllowed} hints, ${roundTimerSec}s timer`);
+      
+      // Set loading to false before navigation to prevent UI issues
+      setIsLoading(false);
+      
+      // Navigate to the first round - ensure this matches the route in App.tsx
+      console.log(`Navigating to round 1 for room ${newRoomId}`);
+      // Use a setTimeout to ensure state updates have completed before navigation
+      setTimeout(() => {
+        navigate(`/test/game/room/${newRoomId}/round/1`);
+      }, 100);
 
     } catch (err) {
       console.error("Error in startGame:", err);
       setError(err instanceof Error ? err.message : 'An unknown error occurred');
       setIsLoading(false);
-      // Potentially navigate to an error page or show a toast
+      alert('Failed to start game. Please try again.');
     }
   }, [navigate, hintsAllowed, roundTimerSec]);
 

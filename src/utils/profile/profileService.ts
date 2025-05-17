@@ -30,7 +30,26 @@ export interface UserStats {
   challenge_accuracy: number;
 }
 
-export type UserMetrics = Record<string, number>;
+// Define the structure of the user_metrics table in Supabase
+export interface UserMetricsTable {
+  id: string;
+  user_id: string;
+  xp_total: number;
+  overall_accuracy: number;
+  games_played: number;
+  created_at: string;
+  updated_at: string;
+  best_accuracy?: number;
+  perfect_games?: number;
+  global_rank?: number;
+  time_accuracy?: number;
+  location_accuracy?: number;
+  challenge_accuracy?: number;
+  year_bullseye?: number;
+  location_bullseye?: number;
+}
+
+export type UserMetricsRecord = Record<string, number>;
 
 export interface UserSettings {
   theme: 'light' | 'dark' | 'system';
@@ -42,6 +61,32 @@ export interface UserSettings {
 
 // Fetch user profile
 export async function fetchUserProfile(userId: string): Promise<UserProfile | null> {
+  // If userId is not provided, return null early
+  if (!userId) {
+    console.log('No userId provided for profile fetch');
+    return null;
+  }
+  
+  // Check if this is a guest user from localStorage
+  const guestSession = localStorage.getItem('guestSession');
+  if (guestSession) {
+    try {
+      const guestUser = JSON.parse(guestSession);
+      if (guestUser.id === userId) {
+        // Return a simplified profile for guest users
+        return {
+          id: guestUser.id,
+          display_name: guestUser.display_name,
+          avatar_url: guestUser.avatar_url || '',
+          avatar_image_url: guestUser.avatar_url || 'https://api.dicebear.com/6.x/adventurer/svg?seed=' + userId,
+          created_at: new Date().toISOString()
+        } as UserProfile;
+      }
+    } catch (e) {
+      console.log('Error parsing guest session:', e);
+    }
+  }
+  
   try {
     const { data, error } = await supabase
       .from('profiles')
@@ -212,24 +257,152 @@ export async function fetchAvatars(): Promise<Avatar[]> {
 // Fetch user stats
 export async function fetchUserStats(userId: string): Promise<UserStats | null> {
   try {
-    // In a real implementation, this would fetch from a user_stats table or view
-    // For now, return mock data
-    const mockStats: UserStats = {
-      games_played: 42,
-      avg_accuracy: 78.5,
-      best_accuracy: 96.0,
-      perfect_scores: 3,
-      total_xp: 2750,
-      global_rank: 142,
-      time_accuracy: 82.3,
-      location_accuracy: 74.8,
-      challenge_accuracy: 80.1
-    };
+    const { data, error } = await supabase
+      .from('user_metrics')
+      .select('*')
+      .eq('user_id', userId)
+      .single();
+
+    if (error) {
+      console.error('Error fetching user stats:', error);
+      return null;
+    }
+
+    if (!data) return null;
     
-    return mockStats;
+    const metrics = data as UserMetricsTable;
+
+    return {
+      games_played: metrics.games_played || 0,
+      avg_accuracy: metrics.overall_accuracy || 0,
+      best_accuracy: metrics.best_accuracy || 0,
+      perfect_scores: metrics.perfect_games || 0,
+      total_xp: metrics.xp_total || 0,
+      global_rank: metrics.global_rank || 0,
+      time_accuracy: metrics.time_accuracy || 0,
+      location_accuracy: metrics.location_accuracy || 0,
+      challenge_accuracy: metrics.challenge_accuracy || 0
+    };
   } catch (error) {
     console.error('Error in fetchUserStats:', error);
     return null;
+  }
+}
+
+/**
+ * Updates user metrics in Supabase after a game is completed
+ * @param userId The user's ID
+ * @param gameMetrics The metrics from the completed game
+ * @returns Promise<boolean> indicating success or failure
+ */
+export async function updateUserMetrics(
+  userId: string,
+  gameMetrics: {
+    gameAccuracy: number;
+    gameXP: number;
+    isPerfectGame: boolean;
+    locationAccuracy: number;
+    timeAccuracy: number;
+    yearBullseye?: boolean;
+    locationBullseye?: boolean;
+  }
+): Promise<boolean> {
+  try {
+    // First, get existing metrics
+    const { data: existingData, error: fetchError } = await supabase
+      .from('user_metrics')
+      .select('*')
+      .eq('user_id', userId)
+      .single();
+
+    // Define a type that includes all possible metrics fields
+    type UserMetricsUpsert = {
+      user_id: string;
+      xp_total: number;
+      overall_accuracy: number;
+      games_played: number;
+      updated_at: string;
+      best_accuracy?: number;
+      perfect_games?: number;
+      global_rank?: number;
+      time_accuracy?: number;
+      location_accuracy?: number;
+      challenge_accuracy?: number;
+      year_bullseye?: number;
+      location_bullseye?: number;
+    };
+    
+    // Initialize metrics object with required fields
+    let metrics: UserMetricsUpsert = {
+      user_id: userId,
+      xp_total: 0,
+      overall_accuracy: 0,
+      games_played: 0,
+      updated_at: new Date().toISOString()
+    };
+
+    if (fetchError && fetchError.code === 'PGRST116') {
+      // No existing record, create new metrics
+      metrics = {
+        ...metrics,
+        games_played: 1,
+        overall_accuracy: gameMetrics.gameAccuracy,
+        best_accuracy: gameMetrics.gameAccuracy,
+        perfect_games: gameMetrics.isPerfectGame ? 1 : 0,
+        xp_total: gameMetrics.gameXP,
+        time_accuracy: gameMetrics.timeAccuracy,
+        location_accuracy: gameMetrics.locationAccuracy,
+        challenge_accuracy: 0,
+        global_rank: 0,
+        year_bullseye: gameMetrics.yearBullseye ? 1 : 0,
+        location_bullseye: gameMetrics.locationBullseye ? 1 : 0
+      };
+    } else if (fetchError) {
+      console.error('Error fetching existing metrics:', fetchError);
+      return false;
+    } else {
+      // Update existing metrics
+      const metrics_data = existingData as UserMetricsTable;
+      const gamesPlayed = (metrics_data.games_played || 0) + 1;
+      const newOverallAccuracy = Math.round(
+        ((metrics_data.overall_accuracy || 0) * (gamesPlayed - 1) + gameMetrics.gameAccuracy) / gamesPlayed
+      );
+      const newTimeAccuracy = Math.round(
+        ((metrics_data.time_accuracy || 0) * (gamesPlayed - 1) + gameMetrics.timeAccuracy) / gamesPlayed
+      );
+      const newLocationAccuracy = Math.round(
+        ((metrics_data.location_accuracy || 0) * (gamesPlayed - 1) + gameMetrics.locationAccuracy) / gamesPlayed
+      );
+      
+      metrics = {
+        ...metrics,
+        games_played: gamesPlayed,
+        overall_accuracy: newOverallAccuracy,
+        best_accuracy: Math.max(metrics_data.best_accuracy || 0, gameMetrics.gameAccuracy),
+        perfect_games: (metrics_data.perfect_games || 0) + (gameMetrics.isPerfectGame ? 1 : 0),
+        xp_total: (metrics_data.xp_total || 0) + gameMetrics.gameXP,
+        time_accuracy: newTimeAccuracy,
+        location_accuracy: newLocationAccuracy,
+        year_bullseye: (metrics_data.year_bullseye || 0) + (gameMetrics.yearBullseye ? 1 : 0),
+        location_bullseye: (metrics_data.location_bullseye || 0) + (gameMetrics.locationBullseye ? 1 : 0)
+      };
+    }
+
+    // Upsert the metrics to Supabase
+    const { error: upsertError } = await supabase
+      .from('user_metrics')
+      .upsert(metrics);
+
+    if (upsertError) {
+      console.error('Error updating user metrics:', upsertError);
+      return false;
+    }
+
+    console.log(`Updated metrics for user ${userId}:`, metrics);
+    return true;
+  } catch (error) {
+    console.error('Error in updateUserMetrics:', error);
+    return false;
   }
 }
 

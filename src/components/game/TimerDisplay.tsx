@@ -7,6 +7,7 @@ interface TimerDisplayProps {
   setRemainingTime: React.Dispatch<React.SetStateAction<number>>;
   isActive: boolean;
   onTimeout?: () => void;
+  roundTimerSec: number;
 }
 
 const TimerDisplay: React.FC<TimerDisplayProps> = ({
@@ -66,22 +67,45 @@ const TimerDisplay: React.FC<TimerDisplayProps> = ({
     
     if (isActive && remainingTime > 0) {
       interval = setInterval(() => {
-        setRemainingTime(prevTime => prevTime - 1);
+        setRemainingTime(prevTime => {
+          const newTime = prevTime - 1;
+          if (newTime <= 0) {
+            // Clear interval first to prevent multiple timeouts
+            if (interval) clearInterval(interval);
+            // Trigger timeout on next tick to avoid state update during render
+            setTimeout(() => onTimeout?.(), 0);
+            return 0;
+          }
+          return newTime;
+        });
       }, 1000);
-    } else if (remainingTime <= 0 && roundTimerSec > 0) {
-      // Time's up - handle completion only if timer is enabled
-      if (onTimeout) {
-        onTimeout();
-      }
+    } else if (remainingTime <= 0 && onTimeout && isActive) {
+      // Ensure timeout is called if component mounts with 0 time
+      onTimeout();
     }
     
     return () => {
       if (interval) clearInterval(interval);
     };
-  }, [isActive, remainingTime, onTimeout, setRemainingTime, roundTimerSec]);
+  }, [isActive, remainingTime, onTimeout, setRemainingTime]);
 
-  // We don't render anything here because the timer display is handled elsewhere
-  return null;
+  // Skip rendering if timer is disabled
+  if (roundTimerSec === 0) {
+    return null;
+  }
+
+  const isCritical = remainingTime <= 10;
+  
+  return (
+    <div className={`flex items-center justify-center rounded-full h-12 w-12 md:h-14 md:w-14 text-white font-bold text-base md:text-lg
+      ${isCritical ? 'bg-red-600 animate-pulse' : 'bg-black/70'} shadow-lg border-2 ${isCritical ? 'border-red-400' : 'border-white/20'}`}
+      aria-live="polite"
+      aria-atomic="true"
+    >
+      <span className="sr-only">Time remaining: </span>
+      {formatTime(remainingTime)}
+    </div>
+  );
 };
 
 export const formatTime = (seconds: number): string => {

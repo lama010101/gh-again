@@ -1,5 +1,5 @@
 import { useNavigate, useParams } from 'react-router-dom';
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import ResultsLayout2 from "@/components/layouts/ResultsLayout2"; // Use the original layout
 import { useToast } from "@/components/ui/use-toast";
 import { Loader } from 'lucide-react';
@@ -9,6 +9,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { awardRoundBadges } from '@/utils/badges/badgeService';
 import { Badge } from '@/utils/badges/types';
 import { toast as sonnerToast } from '@/components/ui/sonner';
+import { ConfirmNavigationDialog } from '@/components/game/ConfirmNavigationDialog';
 // Import RoundResult type from context if not already imported by ResultsLayout2 or define mapping
 import { RoundResult as ContextRoundResult, GameImage } from '@/contexts/GameContext';
 // Import the RoundResult type expected by ResultsLayout2
@@ -54,8 +55,20 @@ const RoundResultsPage = () => {
   const navigate = useNavigate();
   const { toast } = useToast();
   const { user } = useAuth();
+  const [showConfirmDialog, setShowConfirmDialog] = useState(false);
+  const [pendingNavigation, setPendingNavigation] = useState<(() => void) | null>(null);
+  
   // Use useParams for new route structure
   const { roomId, roundNumber: roundNumberStr } = useParams<{ roomId: string; roundNumber: string }>(); 
+  
+  const handleNavigateHome = useCallback(() => {
+    navigate('/test');
+  }, [navigate]);
+  
+  const confirmNavigation = useCallback((navigateTo: () => void) => {
+    setPendingNavigation(() => navigateTo);
+    setShowConfirmDialog(true);
+  }, []);
 
   // Get data from GameContext
   const { images, roundResults, isLoading: isContextLoading, error: contextError } = useGame(); 
@@ -238,7 +251,7 @@ const RoundResultsPage = () => {
         <div className="text-center p-4 bg-background rounded shadow">
           <h2 className="text-xl font-semibold text-destructive mb-2">Error Loading Game</h2>
           <p className="text-muted-foreground mb-3">{contextError}</p>
-           <Button onClick={() => navigate('/test')}>Return Home</Button>
+           <Button onClick={() => confirmNavigation(handleNavigateHome)}>Return Home</Button>
         </div>
       </div>
     );
@@ -246,34 +259,46 @@ const RoundResultsPage = () => {
 
   // Handle case where results for this specific round aren't found in context yet OR image is missing
   if (!resultForLayout) {
-     // Keep the existing check for missing results/image data
-      return (
-          <div className="min-h-screen bg-gray-100 dark:bg-gray-900 flex items-center justify-center">
-             <div className="text-center p-4 bg-background rounded shadow">
-               <h2 className="text-xl font-semibold text-destructive mb-2">Results Not Found</h2>
-               <p className="text-muted-foreground mb-3">
-                   Could not find { !currentImage ? 'image data' : 'results' } for round {roundNumber}.
-                   { !contextResult && currentImage && ' Please play the round first.'}
-               </p>
-               <Button onClick={() => navigate(`/test/game/room/${roomId}/round/${roundNumber}`)}>Go Back to Round</Button>
-               <Button variant="link" onClick={() => navigate('/test')}>Return Home</Button>
-             </div>
-          </div>
-        );
+    return (
+      <div className="min-h-screen bg-gray-100 dark:bg-gray-900 flex items-center justify-center">
+        <div className="text-center p-4 bg-background rounded shadow">
+          <h2 className="text-xl font-semibold text-destructive mb-2">Results Not Found</h2>
+          <p className="text-muted-foreground mb-3">
+            Could not find {!currentImage ? 'image data' : 'results'} for round {roundNumber}.
+            {!contextResult && currentImage && ' Please play the round first.'}
+          </p>
+          <Button onClick={() => navigate(`/test/game/room/${roomId}/round/${roundNumber}`)}>
+            Go Back to Round
+          </Button>
+          <Button variant="link" onClick={() => confirmNavigation(handleNavigateHome)}>
+            Return Home
+          </Button>
+        </div>
+      </div>
+    );
   }
 
   // Pass the correctly mapped result to the layout
   return (
-    <ResultsLayout2 
-      onNext={handleNext} 
-      gameId={roomId || undefined} 
-      round={roundNumber}
-      isLoading={navigating}
-      error={null} 
-      // Pass the result, now correctly typed
-      result={resultForLayout} 
-    />
+    <>
+      <ResultsLayout2 
+        onNext={handleNext} 
+        gameId={roomId || undefined} 
+        round={roundNumber}
+        isLoading={navigating}
+        error={null} 
+        result={resultForLayout} 
+      />
+      <ConfirmNavigationDialog
+        isOpen={showConfirmDialog}
+        onClose={() => setShowConfirmDialog(false)}
+        onConfirm={() => {
+          setShowConfirmDialog(false);
+          pendingNavigation?.();
+        }}
+      />
+    </>
   );
 };
 
-export default RoundResultsPage; 
+export default RoundResultsPage;

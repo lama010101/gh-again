@@ -1,6 +1,6 @@
 import React from 'react';
 import { Button } from "@/components/ui/button";
-import { Clock, HelpCircle, Target, Zap, Home, Settings } from "lucide-react";
+import { Clock, HelpCircle, Target, Zap, Home, Settings as SettingsIcon } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { useNavigate } from 'react-router-dom';
 import { formatInteger } from '@/utils/format';
@@ -9,11 +9,14 @@ interface GameOverlayHUDProps {
   remainingTime?: string;
   rawRemainingTime?: number;
   onHintClick?: () => void;
+  onSettingsClick?: () => void;
   hintsUsed?: number;
   hintsAllowed?: number;
   selectedHintType?: string | null;
   currentAccuracy?: number;
   currentScore?: number;
+  onNavigateHome: () => void;
+  onConfirmNavigation: (navigateTo: () => void) => void;
 }
 
 const GameOverlayHUD: React.FC<GameOverlayHUDProps> = ({
@@ -24,9 +27,11 @@ const GameOverlayHUD: React.FC<GameOverlayHUDProps> = ({
   hintsAllowed = 0,
   selectedHintType,
   currentAccuracy = 0,
-  currentScore = 0
+  currentScore = 0,
+  onSettingsClick,
+  onNavigateHome,
+  onConfirmNavigation
 }) => {
-  const navigate = useNavigate();
   const hintsRemaining = hintsAllowed - hintsUsed;
   const isHintDisabled = hintsRemaining <= 0;
   
@@ -37,64 +42,56 @@ const GameOverlayHUD: React.FC<GameOverlayHUDProps> = ({
     <div className="absolute inset-0 z-40 flex flex-col justify-between p-4 pointer-events-none">
       {/* Top bar - Score in center, Settings and Home buttons on right */}
       <div className="flex justify-between items-start w-full">
-        {/* Left Spacer to balance Settings/Home buttons */}
-        <div className="invisible flex bg-black/30 backdrop-blur-sm p-2 rounded-lg space-x-2 pointer-events-none">
+        {/* Left - Settings button */}
+        <div className="flex pointer-events-auto">
           <Button 
-            variant="ghost" 
             size="icon"
-            className="h-8 w-8 p-1"
-            aria-label="Settings Placeholder"
+            variant="outline"
+            onClick={onSettingsClick}
+            className="h-9 w-9 bg-white/70 hover:bg-white text-black rounded-full"
+            aria-label="Settings"
           >
-            <Settings className="h-5 w-5" />
-          </Button>
-          <Button 
-            variant="ghost" 
-            size="icon"
-            className="h-8 w-8 p-1"
-            aria-label="Home Placeholder"
-          >
-            <Home className="h-5 w-5" />
+            <SettingsIcon className="h-4 w-4" />
           </Button>
         </div>
         
         {/* Center - Score and accuracy */}
         <div className="flex bg-black/30 backdrop-blur-sm p-2 rounded-lg space-x-2 pointer-events-auto">
-          <Badge variant="accuracy" className="flex items-center gap-1" aria-label={`Accuracy: ${Math.round(currentAccuracy)}%`}>
+          <Badge 
+            variant="accuracy" 
+            className="flex items-center gap-1" 
+            aria-label={`Accuracy: ${Math.round(currentAccuracy)}%`}
+          >
             <Target className="h-3 w-3" />
             <span>{formatInteger(currentAccuracy)}%</span>
           </Badge>
-          <Badge variant="xp" className="flex items-center gap-1" aria-label={`Score: ${Math.round(currentScore)}`}>
+          <Badge 
+            variant="xp" 
+            className="flex items-center gap-1" 
+            aria-label={`Score: ${Math.round(currentScore)}`}
+          >
             <Zap className="h-3 w-3" />
             <span>{formatInteger(currentScore)}</span>
           </Badge>
         </div>
         
-        {/* Right side - Settings and Home buttons */}
-        <div className="flex bg-black/30 backdrop-blur-sm p-2 rounded-lg space-x-2 pointer-events-auto">
+        {/* Right side - Home button */}
+        <div className="flex pointer-events-auto">
           <Button 
-            variant="ghost" 
             size="icon"
-            onClick={() => navigate('/settings')}
-            className="h-8 w-8 p-1 text-white hover:text-gray-200 hover:bg-black/20 rounded-full"
-            aria-label="Settings"
-          >
-            <Settings className="h-5 w-5" />
-          </Button>
-          <Button 
-            variant="ghost" 
-            size="icon"
-            onClick={() => navigate('/')}
-            className="h-8 w-8 p-1 text-white hover:text-gray-200 hover:bg-black/20 rounded-full"
+            variant="outline"
+            onClick={() => onConfirmNavigation(onNavigateHome)}
+            className="h-9 w-9 bg-white/70 hover:bg-white text-black rounded-full"
             aria-label="Home"
           >
-            <Home className="h-5 w-5" />
+            <Home className="h-4 w-4" />
           </Button>
         </div>
       </div>
 
-      {/* Bottom bar with Hint on left and Timer on right */}
-      <div className="flex justify-between items-end w-full">
-        {/* Left - Hint button */}
+      {/* Bottom bar with Hint button */}
+      <div className="flex justify-start items-end w-full">
+        {/* Hint button */}
         {onHintClick && (
           <Button 
             size="sm" 
@@ -107,19 +104,6 @@ const GameOverlayHUD: React.FC<GameOverlayHUDProps> = ({
             <span className="mr-1">Hint</span>
             <Badge variant="default" className="text-xs">
               {selectedHintType ? selectedHintType : `${hintsRemaining}/${hintsAllowed}`}
-            </Badge>
-          </Button>
-        )}
-
-        {/* Right - Timer */}
-        {remainingTime && (
-          <Button size="sm" variant="outline" className="bg-white/70 hover:bg-white text-black pointer-events-auto">
-            <Clock className="h-4 w-4 mr-1" />
-            <Badge 
-              variant="default" 
-              className={`text-xs ${timerBadgeClass}`}
-            >
-              {remainingTime}
             </Badge>
           </Button>
         )}

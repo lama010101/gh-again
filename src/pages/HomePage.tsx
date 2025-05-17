@@ -5,8 +5,8 @@ import SettingsTab from '@/components/profile/SettingsTab';
 import { useAuth } from '@/contexts/AuthContext';
 import { UserSettings, fetchUserSettings, UserProfile, fetchUserProfile } from '@/utils/profile/profileService';
 import { GameModeCard } from "@/components/GameModeCard";
-import { useGame } from "@/contexts/GameContext"; // Import useGame hook
-import GameSettings from "@/components/game/GameSettings"; // Import GameSettings
+import { useGame } from "@/contexts/GameContext";
+import { useNavigate } from 'react-router-dom';
 
 // Rename component
 const HomePage = () => {
@@ -15,7 +15,9 @@ const HomePage = () => {
   const [userSettings, setUserSettings] = useState<UserSettings | null>(null);
   const [profile, setProfile] = useState<UserProfile | null>(null); // For profile specific settings if any, or just user id
   const [isLoadingUserSettings, setIsLoadingUserSettings] = useState(false);
-  const { startGame, isLoading } = useGame(); // Get startGame function and loading state
+  const navigate = useNavigate();
+  const gameContext = useGame();
+  const { startGame, isLoading } = gameContext || {};
 
   // Fetch user settings when the component mounts or user changes
   useEffect(() => {
@@ -45,60 +47,84 @@ const HomePage = () => {
   };
 
   const handleStartGame = async (mode: string) => {
-    // Potentially pass mode to startGame if needed in context
     console.log(`Starting game with mode: ${mode}`);
-    if (!isLoading) { // Prevent multiple clicks while loading
-      await startGame(); // Settings are already in context, startGame reads them
+    if (!gameContext) {
+      console.error('Game context is not available');
+      return;
+    }
+    
+    if (!isLoading) {
+      try {
+        await startGame?.();
+        // Navigate to game page after starting the game
+        navigate('/game');
+      } catch (error) {
+        console.error('Error starting game:', error);
+      }
     }
   };
 
   return (
-    <div className="container mx-auto px-4 py-12 relative">
-      {user && (
-        <button 
-          onClick={() => setIsSettingsPopupOpen(true)} 
-          className="absolute top-4 right-4 p-2 rounded-full hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors z-10"
-          aria-label="Open Settings"
+    <div className="container mx-auto px-4 py-12">
+      {/* Settings Button */}
+      <div className="flex justify-end mb-8">
+        <button
+          onClick={() => setIsSettingsPopupOpen(true)}
+          className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-history-primary hover:bg-history-primary/90 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-history-primary transition-colors"
         >
-          <SettingsIcon className="h-6 w-6 text-gray-700 dark:text-gray-300" />
+          <SettingsIcon className="h-5 w-5 mr-2" />
+          Settings
         </button>
-      )}
-
-      {/* Game Settings Section */}
-      <div className="max-w-3xl mx-auto mb-12">
-        <GameSettings />
       </div>
 
       {/* Game modes section */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-8 max-w-6xl mx-auto">
-        <GameModeCard
-          title="Classic"
-          description="Test your historical knowledge at your own pace. Perfect for learning and exploring."
-          mode="classic"
-          icon={User}
-          onStartGame={handleStartGame} // Pass handler to the card
-          isLoading={isLoading} // Pass loading state
-        />
-        {/* Add onStartGame and isLoading to other cards if they should also start games */}
-        <GameModeCard
-          title="Time Attack"
-          description="Race against the clock! Make quick decisions about historical events."
-          mode="time-attack"
-          icon={Clock}
-          onStartGame={handleStartGame} // Add handler 
-          isLoading={isLoading} // Add loading state
-        />
-        <GameModeCard
-          title="Challenge"
-          description="Compete with others in daily challenges and earn achievements."
-          mode="challenge"
-          icon={Award}
-          onStartGame={handleStartGame} // Add handler
-          isLoading={isLoading} // Add loading state
-        />
-      </div>
+      {gameContext ? (
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-8 max-w-6xl mx-auto">
+          <GameModeCard
+            title="Classic"
+            description="Test your historical knowledge at your own pace. Perfect for learning and exploring."
+            mode="classic"
+            icon={User}
+            onStartGame={handleStartGame}
+            isLoading={isLoading}
+          />
+          <GameModeCard
+            title="Time Attack"
+            description="Race against the clock! Make quick decisions about historical events."
+            mode="time-attack"
+            icon={Clock}
+            onStartGame={handleStartGame}
+            isLoading={isLoading}
+          />
+          <GameModeCard
+            title="Challenge"
+            description="Compete with others in daily challenges and earn achievements."
+            mode="challenge"
+            icon={Award}
+            onStartGame={handleStartGame}
+            isLoading={isLoading}
+          />
+        </div>
+      ) : (
+        <div className="text-center py-12">
+          <div className="animate-pulse space-y-4">
+            <div className="h-8 bg-gray-200 dark:bg-gray-700 rounded w-3/4 mx-auto"></div>
+            <div className="h-4 bg-gray-200 dark:bg-gray-700 rounded w-1/2 mx-auto"></div>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-8 max-w-6xl mx-auto mt-8">
+              {[1, 2, 3].map((i) => (
+                <div key={i} className="h-64 bg-gray-100 dark:bg-gray-800 rounded-lg p-6 shadow">
+                  <div className="h-8 w-8 bg-gray-200 dark:bg-gray-700 rounded-full mx-auto mb-4"></div>
+                  <div className="h-6 bg-gray-200 dark:bg-gray-700 rounded w-3/4 mx-auto mb-2"></div>
+                  <div className="h-4 bg-gray-200 dark:bg-gray-700 rounded w-5/6 mx-auto mb-4"></div>
+                  <div className="h-10 bg-gray-200 dark:bg-gray-700 rounded w-3/4 mx-auto"></div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
 
-      {user && userSettings && (
+{user && userSettings && (
         <Popup 
           isOpen={isSettingsPopupOpen} 
           onClose={() => setIsSettingsPopupOpen(false)} 

@@ -1,6 +1,6 @@
 import React, { useEffect } from "react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { BrowserRouter, Routes, Route, Navigate, useNavigate } from "react-router-dom";
+import { BrowserRouter, Routes, Route, Navigate, useNavigate, createBrowserRouter, RouterProvider } from "react-router-dom";
 import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
@@ -8,6 +8,8 @@ import { ThemeProvider } from "next-themes";
 import { AuthProvider, useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
 import { GameProvider } from "@/contexts/GameContext";
+import { LogProvider, useConsoleLogging } from "@/contexts/LogContext";
+import { LogWindowModal } from "@/components/LogWindowModal";
 
 import TestLayout from "./layouts/TestLayout";
 import HomePage from "./pages/HomePage";
@@ -75,6 +77,12 @@ const AuthRedirectHandler = () => {
   return null;
 };
 
+// Component to set up console logging
+const ConsoleLogger = () => {
+  useConsoleLogging();
+  return null;
+};
+
 const App = () => {
   const queryClient = new QueryClient();
 
@@ -82,36 +90,39 @@ const App = () => {
     <React.StrictMode>
       <ThemeProvider attribute="class" defaultTheme="system" enableSystem>
         <QueryClientProvider client={queryClient}>
-          <AuthProvider>
-            <TooltipProvider>
-              <Toaster />
-              <Sonner />
-              <BrowserRouter>
-                <GameProvider>
-                <AuthRedirectHandler />
-                <Routes>
-                  <Route path="/test" element={<TestLayout />}>
-                      <Route index element={<HomePage />} />
-                      <Route path="auth" element={<AuthPage />} />
-                      <Route path="leaderboard" element={<LeaderboardPage />} />
-                      <Route path="profile" element={<ProfilePage />} />
-                      <Route path="settings" element={<SettingsPage />} />
-                      <Route path="room" element={<GameRoomPage />} />
-                      <Route path="friends" element={<FriendsPage />} />
-                      <Route path="admin/images" element={<AdminImagesPage />} />
-                      <Route path="admin/badges" element={<AdminBadgesPage />} />
-                      
-                      <Route path="game/room/:roomId/round/:roundNumber" element={<GameRoundPage />} />
-                      <Route path="game/room/:roomId/round/:roundNumber/results" element={<RoundResultsPage />} />
-                  </Route>
-                  {/* Final Results page with its own MainNavbar */}
-                  <Route path="/test/game/room/:roomId/final" element={<FinalResultsPage />} />
-                  <Route path="*" element={<Navigate to="/test" replace />} />
-                </Routes>
-                </GameProvider>
-              </BrowserRouter>
-            </TooltipProvider>
-          </AuthProvider>
+          <LogProvider>
+            <AuthProvider>
+              <TooltipProvider>
+                <Toaster />
+                <Sonner />
+                <ConsoleLogger />
+                <LogWindowModal />
+                <BrowserRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
+                  <AuthRedirectHandler />
+                  <GameProvider>
+                    <Routes>
+                      <Route path="/test" element={<TestLayout />}>
+                        <Route index element={<HomePage />} />
+                        <Route path="auth" element={<AuthPage />} />
+                        <Route path="leaderboard" element={<LeaderboardPage />} />
+                        <Route path="profile" element={<ProfilePage />} />
+                        <Route path="settings" element={<SettingsPage />} />
+                        <Route path="room" element={<GameRoomPage />} />
+                        <Route path="friends" element={<FriendsPage />} />
+                        <Route path="admin/images" element={<AdminImagesPage />} />
+                        <Route path="admin/badges" element={<AdminBadgesPage />} />
+                        <Route path="game/room/:roomId/round/:roundNumber" element={<GameRoundPage />} />
+                        <Route path="game/room/:roomId/round/:roundNumber/results" element={<RoundResultsPage />} />
+                      </Route>
+                      {/* Final Results page with its own MainNavbar */}
+                      <Route path="/test/game/room/:roomId/final" element={<FinalResultsPage />} />
+                      <Route path="*" element={<Navigate to="/test" replace />} />
+                    </Routes>
+                  </GameProvider>
+                </BrowserRouter>
+              </TooltipProvider>
+            </AuthProvider>
+          </LogProvider>
         </QueryClientProvider>
       </ThemeProvider>
     </React.StrictMode>

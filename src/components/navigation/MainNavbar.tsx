@@ -5,6 +5,7 @@ import { useNavigate } from 'react-router-dom';
 import { useGame } from '@/contexts/GameContext';
 import Logo from '@/components/Logo';
 import { Badge } from "@/components/ui/badge";
+import { formatInteger } from '@/utils/format';
 
 interface MainNavbarProps {
   onMenuClick?: () => void;
@@ -30,9 +31,9 @@ const MainNavbar: React.FC<MainNavbarProps> = ({ onMenuClick }) => {
           
           {/* Global Score in center/right */}
           <div className="flex items-center">
-            <Badge variant="xp" className="text-lg flex items-center gap-1 mr-4" aria-label={`Global XP: ${Math.round(globalXP)}`}>
+            <Badge variant="xp" className="text-lg flex items-center gap-1 mr-4" aria-label={`Global XP: ${formatInteger(globalXP)}`}>
               <Award className="h-4 w-4" />
-              <span>{Math.round(globalXP)}</span>
+              <span>{formatInteger(globalXP)}</span>
             </Badge>
             
             {/* Menu button on the right */}

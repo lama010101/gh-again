@@ -308,18 +308,6 @@ const ResultsLayout2: React.FC<ResultsLayout2Props> = ({
                   </div>
                 </div>
               )}
-              
-              <div className="flex justify-center mt-6">
-                <Button 
-                  size="sm" 
-                  variant="outline" 
-                  className="gap-1"
-                  onClick={() => {/* Share functionality */}}
-                >
-                  <Share2 className="h-4 w-4" />
-                  Share
-                </Button>
-              </div>
             </div>
             
             {/* Time accuracy card for mobile screens */}
@@ -336,7 +324,12 @@ const ResultsLayout2: React.FC<ResultsLayout2Props> = ({
               
               <div className="flex justify-between text-sm mb-4">
                 <div>Your guess: <span className="font-medium">{result.guessYear}</span></div>
-                <div>Correct: <span className="font-medium">{result.eventYear}</span></div>
+                <div>
+                  <span className="text-foreground">Correct: </span>
+                  <Badge variant="selectedValue" className="ml-1 text-xl">
+                    {result.eventYear}
+                  </Badge>
+                </div>
               </div>
               
               <div className="flex justify-between items-center mt-4">
@@ -373,16 +366,16 @@ const ResultsLayout2: React.FC<ResultsLayout2Props> = ({
                 </div>
               </div>
               
-              <div className="p-4 border-b border-border flex flex-col md:flex-row justify-between items-center">
-                <div className="text-center md:text-left mb-2 md:mb-0">
-                  <div className="font-medium">
+              <div className="p-4 border-b border-border">
+                <div className="flex justify-end text-sm mb-4">
+                  <div>
                     <span className="text-foreground">Correct: </span>
                     <Badge variant="selectedValue" className="ml-1 text-xl">
                       {result.locationName}
                     </Badge>
                   </div>
                 </div>
-                <div className="flex gap-4 items-center">
+                <div className="flex justify-between items-center mt-4">
                   <div className="text-center">
                     <Badge variant="accuracy" className="text-sm flex items-center gap-1">
                       <Target className="h-3 w-3" />
@@ -509,18 +502,27 @@ const ResultsLayout2: React.FC<ResultsLayout2Props> = ({
           </div>
         </div>
         
-        {/* Sticky footer with next button for mobile only */}
-        <div className="md:hidden sticky bottom-4 mt-6">
-          {onNext && (
+        {/* Sticky footer with action buttons for mobile only */}
+        <div className="md:hidden sticky bottom-4 mt-6 space-y-2 px-4">
+          <div className="flex space-x-2">
             <Button 
-              onClick={onNext}
-              disabled={isLoading}
-              className="w-full py-6 font-semibold text-lg bg-history-primary hover:bg-history-primary/90 text-white shadow-lg rounded-xl"
+              variant="outline"
+              onClick={() => window.location.href = '/test'}
+              className="flex-1 py-4 font-medium text-muted-foreground hover:text-foreground"
             >
-              Next Round
-              <ChevronRight className="ml-2 h-5 w-5" />
+              Home
             </Button>
-          )}
+            {onNext && (
+              <Button 
+                onClick={onNext}
+                disabled={isLoading}
+                className="flex-1 py-6 font-semibold text-lg bg-history-primary hover:bg-history-primary/90 text-white shadow-lg rounded-xl"
+              >
+                Next Round
+                <ChevronRight className="ml-2 h-5 w-5" />
+              </Button>
+            )}
+          </div>
         </div>
       </div>
       

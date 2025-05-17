@@ -1,6 +1,7 @@
 import React from 'react';
 import { Progress } from "@/components/ui/progress";
 import { UserStats } from '@/utils/profile/profileService';
+import { formatInteger } from '@/utils/format';
 
 interface StatsTabProps {
   stats: UserStats;
@@ -29,24 +30,24 @@ const StatsTab: React.FC<StatsTabProps> = ({ stats, isLoading }) => {
         <>
           <div className="grid grid-cols-2 sm:grid-cols-3 gap-4 mb-8">
             <div className="bg-white dark:bg-gray-800 rounded-lg p-4 text-center shadow-sm">
-              <div className="text-2xl font-bold text-history-primary dark:text-history-light">{stats.games_played}</div>
+              <div className="text-2xl font-bold text-history-primary dark:text-history-light">{formatInteger(stats.games_played)}</div>
               <div className="text-sm text-muted-foreground">Games Played</div>
             </div>
             <div className="bg-white dark:bg-gray-800 rounded-lg p-4 text-center shadow-sm">
-              <div className="text-2xl font-bold text-history-primary dark:text-history-light">{stats.avg_accuracy}%</div>
+              <div className="text-2xl font-bold text-history-primary dark:text-history-light">{formatInteger(stats.avg_accuracy)}%</div>
               <div className="text-sm text-muted-foreground">Avg. Accuracy</div>
             </div>
             <div className="bg-white dark:bg-gray-800 rounded-lg p-4 text-center shadow-sm">
-              <div className="text-2xl font-bold text-history-primary dark:text-history-light">{stats.best_accuracy}%</div>
+              <div className="text-2xl font-bold text-history-primary dark:text-history-light">{formatInteger(stats.best_accuracy)}%</div>
               <div className="text-sm text-muted-foreground">Best Accuracy</div>
             </div>
             <div className="bg-white dark:bg-gray-800 rounded-lg p-4 text-center shadow-sm">
-              <div className="text-2xl font-bold text-history-primary dark:text-history-light">{stats.perfect_scores}</div>
+              <div className="text-2xl font-bold text-history-primary dark:text-history-light">{formatInteger(stats.perfect_scores)}</div>
               <div className="text-sm text-muted-foreground">Perfect Scores</div>
             </div>
             <div className="bg-white dark:bg-gray-800 rounded-lg p-4 text-center shadow-sm">
               <div className="text-2xl font-bold text-history-primary dark:text-history-light">
-                {stats.total_xp.toLocaleString()}
+                {formatInteger(stats.total_xp)}
               </div>
               <div className="text-sm text-muted-foreground">Total XP</div>
             </div>
@@ -65,21 +66,21 @@ const StatsTab: React.FC<StatsTabProps> = ({ stats, isLoading }) => {
               <div>
                 <div className="flex justify-between text-sm mb-1">
                   <span>Time Accuracy</span>
-                  <span className="font-medium">{stats.time_accuracy}%</span>
+                  <span className="font-medium">{formatInteger(stats.time_accuracy)}%</span>
                 </div>
                 <Progress value={stats.time_accuracy} className="h-2" />
               </div>
               <div>
                 <div className="flex justify-between text-sm mb-1">
                   <span>Location Accuracy</span>
-                  <span className="font-medium">{stats.location_accuracy}%</span>
+                  <span className="font-medium">{formatInteger(stats.location_accuracy)}%</span>
                 </div>
                 <Progress value={stats.location_accuracy} className="h-2" />
               </div>
               <div>
                 <div className="flex justify-between text-sm mb-1">
                   <span>Daily Challenges</span>
-                  <span className="font-medium">{stats.challenge_accuracy}%</span>
+                  <span className="font-medium">{formatInteger(stats.challenge_accuracy)}%</span>
                 </div>
                 <Progress value={stats.challenge_accuracy} className="h-2" />
               </div>

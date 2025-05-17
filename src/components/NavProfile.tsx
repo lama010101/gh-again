@@ -1,12 +1,14 @@
 import { useState, useEffect } from "react";
 import { useAuth } from "@/contexts/AuthContext";
 import { useGame } from "@/contexts/GameContext";
+import { useLogs } from "@/contexts/LogContext";
 import { AuthModal } from "@/components/AuthModal";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
@@ -16,19 +18,32 @@ import {
   Users,
   Award,
   UserRound,
-  Settings,
+  Settings as SettingsIcon,
   LogIn,
   ShieldCheck,
   Target,
-  Zap
+  Zap,
+  Terminal,
+  LogOut,
+  Bug
 } from "lucide-react";
 import { Link, useNavigate } from "react-router-dom";
 
 export const NavProfile = () => {
   const { user, signOut, isGoogleUser } = useAuth();
   const { globalXP, globalAccuracy, fetchGlobalMetrics } = useGame();
+  const { openLogWindow } = useLogs();
   const [showAuthModal, setShowAuthModal] = useState(false);
   const navigate = useNavigate();
+  
+  const handleSignOut = async () => {
+    try {
+      await signOut();
+      navigate('/test');
+    } catch (error) {
+      console.error('Error signing out:', error);
+    }
+  };
   
   // Fetch global metrics when the component mounts or when user changes
   useEffect(() => {
@@ -57,38 +72,51 @@ export const NavProfile = () => {
   // Get initial for avatar fallback
   const getInitial = () => {
     if (user.isGuest) {
-      return user.display_name.charAt(0).toUpperCase() || "G";
+      return (user.display_name?.charAt(0) || 'G').toUpperCase();
     }
-    // Type assertion to tell TypeScript this is definitely an AuthUser
-    const authUser = user as { email: string };
-    return (authUser.email || "U").charAt(0).toUpperCase();
+    // For authenticated users, use email or display name
+    const email = 'email' in user ? user.email : '';
+    const displayName = 'display_name' in user ? user.display_name : '';
+    return (email?.charAt(0) || displayName?.charAt(0) || 'U').toUpperCase();
   };
 
   const initials = getInitial();
+  
+  // Get user display info
+  const userDisplayName = user.isGuest 
+    ? user.display_name || 'Guest User'
+    : ('display_name' in user ? user.display_name : 'User');
+    
+  const userEmail = !user.isGuest && 'email' in user ? user.email : '';
 
   return (
-    <div className="flex items-center gap-3">
-      {/* Display global score metrics */}
-      <div className="hidden md:flex items-center gap-2">
-        <Badge variant="accuracy" className="flex items-center gap-1" title="Global Accuracy">
-          <Target className="h-3 w-3" />
-          <span>{Math.round(globalAccuracy)}%</span>
-        </Badge>
-        <Badge variant="xp" className="flex items-center gap-1" title="Global XP">
-          <Zap className="h-3 w-3" />
-          <span>{globalXP.toLocaleString()}</span>
-        </Badge>
-      </div>
-      
+    <div className="flex items-center">
       <DropdownMenu>
-        <DropdownMenuTrigger className="outline-none">
-          <Avatar className="h-8 w-8 border-2 border-history-secondary/20 hover:border-history-secondary/40 transition-colors">
-            <AvatarFallback className="bg-history-primary text-white text-sm">
-              {initials}
-            </AvatarFallback>
-          </Avatar>
+        <DropdownMenuTrigger className="outline-none" asChild>
+          <Button variant="ghost" className="relative h-8 w-8 rounded-full p-0">
+            <Avatar className="h-8 w-8 border-2 border-history-secondary/20 hover:border-history-secondary/40 transition-colors">
+              <AvatarFallback className="bg-history-primary text-white text-sm">
+                {initials}
+              </AvatarFallback>
+            </Avatar>
+          </Button>
         </DropdownMenuTrigger>
-      <DropdownMenuContent align="end" className="w-48">
+      <DropdownMenuContent align="end" className="w-56">
+        <div className="px-2 py-1.5">
+          <p className="text-sm font-medium truncate">
+            {userDisplayName}
+          </p>
+          {userEmail && (
+            <p className="text-xs text-muted-foreground truncate">
+              {userEmail}
+            </p>
+          )}
+          <p className="text-xs text-muted-foreground">
+            {user.isGuest ? 'Playing as guest' : 'Signed in'}
+          </p>
+        </div>
+        <DropdownMenuSeparator />
+        
         <DropdownMenuItem asChild>
           <Link to="/test" className="flex items-center">
             <Home className="mr-2 h-4 w-4" />
@@ -111,6 +139,12 @@ export const NavProfile = () => {
           <Link to="/test/profile" className="flex items-center">
             <UserRound className="mr-2 h-4 w-4" />
             <span>Profile</span>
+          </Link>
+        </DropdownMenuItem>
+        <DropdownMenuItem asChild>
+          <Link to="/settings" className="flex items-center">
+            <SettingsIcon className="mr-2 h-4 w-4" />
+            <span>Settings</span>
           </Link>
         </DropdownMenuItem>
         {/* Show Admin link for any signed-in user (not just Google users) */}

@@ -1,7 +1,9 @@
-import React, { useState } from 'react';
+import React, { useState, useCallback } from 'react';
 import { Progress } from "@/components/ui/progress";
 import { useHint } from '@/hooks/useHint';
 import HintModal from '@/components/HintModal';
+import Popup from '@/components/ui/Popup';
+import GameSettings from '@/components/game/GameSettings';
 
 // Import refactored components
 import GameOverlayHUD from '@/components/navigation/GameOverlayHUD';
@@ -23,6 +25,8 @@ export interface GameLayout1Props {
   remainingTime: number;
   setRemainingTime: React.Dispatch<React.SetStateAction<number>>;
   isTimerActive: boolean;
+  onNavigateHome: () => void;
+  onConfirmNavigation: (navigateTo: () => void) => void;
 }
 
 const GameLayout1: React.FC<GameLayout1Props> = ({
@@ -37,9 +41,20 @@ const GameLayout1: React.FC<GameLayout1Props> = ({
   remainingTime,
   setRemainingTime,
   isTimerActive,
+  onNavigateHome,
+  onConfirmNavigation,
 }) => {
   const [isHintModalOpen, setIsHintModalOpen] = useState(false);
-  const { hintsAllowed, totalGameAccuracy, totalGameXP } = useGame();
+  const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+  const { hintsAllowed, totalGameAccuracy, totalGameXP, roundTimerSec } = useGame();
+  
+  const handleSettingsClick = useCallback(() => {
+    setIsSettingsOpen(true);
+  }, []);
+  
+  const handleSettingsClose = useCallback(() => {
+    setIsSettingsOpen(false);
+  }, []);
   
   const {
     selectedHintType,
@@ -82,13 +97,6 @@ const GameLayout1: React.FC<GameLayout1Props> = ({
 
   return (
     <div className="min-h-screen flex flex-col bg-history-light dark:bg-history-dark">
-      <TimerDisplay 
-        remainingTime={remainingTime} 
-        setRemainingTime={setRemainingTime}
-        isActive={isTimerActive}
-        onTimeout={onComplete}
-      />
-      
       <div className="w-full h-[40vh] md:h-[50vh] relative">
         <img
           src={image.url}
@@ -97,14 +105,27 @@ const GameLayout1: React.FC<GameLayout1Props> = ({
         />
         <GameOverlayHUD 
           selectedHintType={selectedHintType}
-          remainingTime={isTimerActive ? formatTime(remainingTime) : undefined}
-          rawRemainingTime={isTimerActive ? remainingTime : undefined}
+          remainingTime={isTimerActive ? formatTime(remainingTime) : formatTime(0)}
+          rawRemainingTime={isTimerActive ? remainingTime : 0}
           onHintClick={handleHintClick}
           hintsUsed={hintsUsed || 0}
           hintsAllowed={hintsAllowed}
-          currentAccuracy={totalGameAccuracy} // Use actual game accuracy
-          currentScore={totalGameXP} // Use actual game score
+          currentAccuracy={totalGameAccuracy}
+          currentScore={totalGameXP}
+          onSettingsClick={handleSettingsClick}
+          onNavigateHome={onNavigateHome}
+          onConfirmNavigation={onConfirmNavigation}
         />
+        {/* Timer Display */}
+        <div className="absolute bottom-4 right-4 z-50">
+          <TimerDisplay 
+            remainingTime={remainingTime} 
+            setRemainingTime={setRemainingTime}
+            isActive={isTimerActive}
+            onTimeout={onComplete}
+            roundTimerSec={roundTimerSec}
+          />
+        </div>
       </div>
       
       <div className="flex-grow p-4 md:p-8">
@@ -129,6 +150,30 @@ const GameLayout1: React.FC<GameLayout1Props> = ({
         hintContent={hintContent}
         onSelectHint={selectHint}
       />
+      
+      {/* Settings Popup */}
+      <Popup 
+        isOpen={isSettingsOpen} 
+        onClose={handleSettingsClose}
+        ariaLabelledBy="game-settings-title"
+      >
+        <div className="w-full max-w-md p-6">
+          <h2 id="game-settings-title" className="text-2xl font-bold mb-6 text-white text-center">
+            Game Settings
+          </h2>
+          <div className="bg-white dark:bg-gray-800 rounded-xl p-6 shadow-lg">
+            <GameSettings />
+            <div className="mt-6 flex justify-end">
+              <button
+                onClick={handleSettingsClose}
+                className="px-4 py-2 bg-history-primary text-white rounded-lg hover:bg-history-primary/90 transition-colors"
+              >
+                Close
+              </button>
+            </div>
+          </div>
+        </div>
+      </Popup>
     </div>
   );
 };

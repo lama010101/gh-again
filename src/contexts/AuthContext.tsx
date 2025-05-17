@@ -69,6 +69,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
           if (guestSession) {
             try {
               const guestUser = JSON.parse(guestSession) as GuestUser;
+              console.log("Using guest session:", guestUser.id);
               setUser(guestUser);
               setSession(null);
               setIsGuest(true);
