@@ -118,7 +118,7 @@ const FinalResultsPage = () => {
 
   return (
     <div className="min-h-screen bg-history-light dark:bg-history-dark flex flex-col">
-      {/* Add MainNavbar at the top */}
+      {/* MainNavbar at the top - exactly like Home page */}
       <MainNavbar onMenuClick={() => console.log('Menu clicked')} />
       
       <div className="flex-grow p-8">
@@ -127,13 +127,11 @@ const FinalResultsPage = () => {
             <h1 className="text-4xl font-bold mb-4 text-history-primary dark:text-history-light">
               Final Score
             </h1>
-            <div className="flex justify-center items-center space-x-4 mt-2">
-              <span className="font-semibold">Accuracy:</span>
+            <div className="flex justify-center items-center gap-4 mt-2">
               <Badge variant="accuracy" className="text-lg flex items-center gap-1" aria-label={`Accuracy: ${formatInteger(totalPercentage)}%`}>
                 <Target className="h-4 w-4" />
                 <span>{formatInteger(totalPercentage)}%</span>
               </Badge>
-              <span className="font-semibold">XP:</span>
               <Badge variant="xp" className="text-lg flex items-center gap-1" aria-label={`XP: ${formatInteger(totalScore)}`}>
                 <Zap className="h-4 w-4" />
                 <span>{formatInteger(totalScore)}</span>

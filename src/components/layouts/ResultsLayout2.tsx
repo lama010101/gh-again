@@ -274,19 +274,17 @@ const ResultsLayout2: React.FC<ResultsLayout2Props> = ({
         <div className="flex flex-col md:flex-row gap-6">
           {/* Left column - Score & Map */}
           <div className="w-full md:w-1/2 space-y-6">
-            {/* Score card */}
+            {/* Score card - updated to match screenshot format */}
             <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-lg p-6 text-center">
               <h2 className="text-2xl font-bold mb-6 text-history-primary dark:text-history-light">Your Score</h2>
               
-              <div className="flex justify-center gap-6 mb-4">
-                <Badge variant="accuracy" className="text-lg flex items-center gap-1">
-                  <Target className="h-5 w-5" />
-                  {totalAccuracy}%
-                </Badge>
-                <Badge variant="xp" className="text-lg flex items-center gap-1">
-                  <Zap className="h-5 w-5" />
-                  +{result.xpTotal}
-                </Badge>
+              <div className="flex justify-center items-center gap-6 mb-4">
+                <div className="flex items-center justify-center bg-blue-100 dark:bg-blue-900/30 rounded-full w-16 h-16">
+                  <div className="text-blue-600 dark:text-blue-400 font-bold">{totalAccuracy}%</div>
+                </div>
+                <div className="flex items-center justify-center bg-green-100 dark:bg-green-900/30 rounded-full w-16 h-16">
+                  <div className="text-green-600 dark:text-green-400 font-bold flex items-center">+{result.xpTotal}</div>
+                </div>
               </div>
               
               {/* Display earned badges if any */}
@@ -311,7 +309,7 @@ const ResultsLayout2: React.FC<ResultsLayout2Props> = ({
                 </div>
               )}
               
-              <div className="flex justify-center gap-4 mt-6">
+              <div className="flex justify-center mt-6">
                 <Button 
                   size="sm" 
                   variant="outline" 
@@ -321,6 +319,41 @@ const ResultsLayout2: React.FC<ResultsLayout2Props> = ({
                   <Share2 className="h-4 w-4" />
                   Share
                 </Button>
+              </div>
+            </div>
+            
+            {/* Time accuracy card for mobile screens */}
+            <div className="md:hidden bg-white dark:bg-gray-800 rounded-2xl shadow-lg p-4">
+              <div className="border-b border-border pb-3 mb-3 flex justify-between items-center">
+                <h2 className="font-bold text-lg text-history-primary dark:text-history-light flex items-center">
+                  <Calendar className="mr-2 h-4 w-4" />
+                  When
+                </h2>
+                <Badge variant="hint" className="text-sm">
+                  {result.yearDifference === 0 ? <span className="text-green-600 dark:text-green-400 font-medium">Perfect!</span> : `${formatInteger(Math.abs(result.yearDifference))} ${Math.abs(result.yearDifference) === 1 ? 'year' : 'years'} off`}
+                </Badge>
+              </div>
+              
+              <div className="flex justify-between text-sm mb-4">
+                <div>Your guess: <span className="font-medium">{result.guessYear}</span></div>
+                <div>Correct: <span className="font-medium">{result.eventYear}</span></div>
+              </div>
+              
+              <div className="flex justify-between items-center mt-4">
+                <div className="text-center">
+                  <Badge variant="accuracy" className="text-sm flex items-center gap-1">
+                    <Target className="h-3 w-3" />
+                    {formatInteger(result.timeAccuracy)}%
+                  </Badge>
+                  <div className="text-xs text-muted-foreground mt-1">Accuracy</div>
+                </div>
+                <div className="text-center">
+                  <Badge variant="xp" className="text-sm flex items-center gap-1">
+                    <Zap className="h-3 w-3" />
+                    +{formatInteger(result.xpWhen)}
+                  </Badge>
+                  <div className="text-xs text-muted-foreground mt-1">XP</div>
+                </div>
               </div>
             </div>
             
@@ -411,45 +444,7 @@ const ResultsLayout2: React.FC<ResultsLayout2Props> = ({
               </div>
             </div>
             
-            {/* Time accuracy card for smaller screens */}
-            <div className="md:hidden bg-white dark:bg-gray-800 rounded-2xl shadow-lg p-4">
-              <div className="border-b border-border pb-3 mb-3 flex justify-between items-center">
-                <h2 className="font-bold text-lg text-history-primary dark:text-history-light flex items-center">
-                  <Calendar className="mr-2 h-4 w-4" />
-                  When
-                </h2>
-                <Badge variant="hint" className="text-sm">
-                  {result.yearDifference === 0 ? <span className="text-green-600 dark:text-green-400 font-medium">Perfect!</span> : `${formatInteger(Math.abs(result.yearDifference))} ${Math.abs(result.yearDifference) === 1 ? 'year' : 'years'} off`}
-                </Badge>
-              </div>
-              
-              <div className="flex justify-between text-sm mb-4">
-                <div>Your guess: <span className="font-medium">{result.guessYear}</span></div>
-                <div>
-                  <span className="text-foreground">Correct: </span>
-                  <Badge variant="selectedValue" className="ml-1 text-xl">
-                    {result.eventYear}
-                  </Badge>
-                </div>
-              </div>
-              
-              <div className="flex justify-between items-center mt-4">
-                <div className="text-center">
-                  <Badge variant="accuracy" className="text-sm flex items-center gap-1">
-                    <Target className="h-3 w-3" />
-                    {formatInteger(result.timeAccuracy)}%
-                  </Badge>
-                  <div className="text-xs text-muted-foreground mt-1">Accuracy</div>
-                </div>
-                <div className="text-center">
-                  <Badge variant="xp" className="text-sm flex items-center gap-1">
-                    <Zap className="h-3 w-3" />
-                    +{formatInteger(result.xpWhen)}
-                  </Badge>
-                  <div className="text-xs text-muted-foreground mt-1">XP</div>
-                </div>
-              </div>
-            </div>
+            {/* Time accuracy card for mobile screens is now above the map */}
           </div>
           
           {/* Right column - Image & Description */}
