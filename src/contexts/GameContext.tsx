@@ -214,6 +214,26 @@ export const GameProvider: React.FC<GameProviderProps> = ({ children }) => {
     fetchGlobalMetrics();
   }, [fetchGlobalMetrics]);
 
+  // Load game settings from localStorage on initial load
+  useEffect(() => {
+    try {
+      const savedSettings = localStorage.getItem('globalGameSettings');
+      if (savedSettings) {
+        const parsed = JSON.parse(savedSettings);
+        if (parsed.timerSeconds !== undefined) {
+          setRoundTimerSec(parsed.timerEnabled ? parsed.timerSeconds : 0);
+          console.log(`Loaded timer settings from localStorage: ${parsed.timerEnabled ? parsed.timerSeconds : 0}s`);
+        }
+        if (parsed.hintsPerGame !== undefined) {
+          setHintsAllowed(parsed.hintsPerGame);
+          console.log(`Loaded hints settings from localStorage: ${parsed.hintsPerGame} hints`);
+        }
+      }
+    } catch (error) {
+      console.error('Error loading game settings from localStorage:', error);
+    }
+  }, []);
+
   // Function to fetch images and start a new game
   const startGame = useCallback(async () => {
     console.log("Starting new game...");

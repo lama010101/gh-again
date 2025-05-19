@@ -1,6 +1,6 @@
 import React from 'react';
 import { Button } from "@/components/ui/button";
-import { HelpCircle, Target, Zap, Home, Settings } from "lucide-react";
+import { HelpCircle, Target, Zap, Home, Settings, Maximize } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { useNavigate } from 'react-router-dom';
 import { formatInteger } from '@/utils/format';
@@ -17,6 +17,8 @@ interface GameOverlayHUDProps {
   onNavigateHome: () => void;
   onConfirmNavigation: (navigateTo: () => void) => void;
   onOpenSettingsModal?: () => void; // Added new prop
+  onFullscreen?: () => void;
+  imageUrl?: string;
 }
 
 const GameOverlayHUD: React.FC<GameOverlayHUDProps> = ({
@@ -30,7 +32,9 @@ const GameOverlayHUD: React.FC<GameOverlayHUDProps> = ({
   currentScore = 0,
   onNavigateHome,
   onConfirmNavigation,
-  onOpenSettingsModal // Destructure new prop
+  onOpenSettingsModal, // Destructure new prop
+  onFullscreen,
+  imageUrl
 }) => {
   const hintsRemaining = hintsAllowed - hintsUsed;
   const isHintDisabled = hintsRemaining <= 0;
@@ -97,6 +101,16 @@ const GameOverlayHUD: React.FC<GameOverlayHUDProps> = ({
               aria-label="Home"
             >
               <Home className="h-4 w-4" />
+            </Button>
+            <Button 
+              size="icon"
+              variant="outline"
+              onClick={onFullscreen ? onFullscreen : undefined}
+              className="h-9 w-9 bg-white/70 hover:bg-white text-black rounded-full"
+              aria-label="Full Screen"
+              type="button"
+            >
+              <Maximize className="h-4 w-4" />
             </Button>
           </div>
         </div>

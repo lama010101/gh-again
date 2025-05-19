@@ -39,6 +39,24 @@ const GameLayout1: React.FC<GameLayout1Props> = ({
   onNavigateHome,
   onConfirmNavigation,
 }) => {
+  const [isFullScreen, setIsFullScreen] = useState(false);
+
+  const handleFullscreen = () => {
+    setIsFullScreen(true);
+    setTimeout(() => {
+      const el = document.getElementById('game-fullscreen-img');
+      if (el && el.requestFullscreen) el.requestFullscreen();
+    }, 0);
+  };
+
+  // Exit full screen on escape or fullscreenchange
+  useEffect(() => {
+    const exitHandler = () => {
+      if (!document.fullscreenElement) setIsFullScreen(false);
+    };
+    document.addEventListener('fullscreenchange', exitHandler);
+    return () => document.removeEventListener('fullscreenchange', exitHandler);
+  }, []);
   const [isHintModalOpen, setIsHintModalOpen] = useState(false);
   const [isSettingsModalOpen, setIsSettingsModalOpen] = useState(false);
   const { hintsAllowed, totalGameAccuracy, totalGameXP, roundTimerSec } = useGame();
@@ -165,6 +183,8 @@ const GameLayout1: React.FC<GameLayout1Props> = ({
           onNavigateHome={onNavigateHome}
           onConfirmNavigation={onConfirmNavigation}
           onOpenSettingsModal={() => setIsSettingsModalOpen(true)}
+          imageUrl={image.url}
+          onFullscreen={handleFullscreen}
         />
         {/* Timer Display */}
         <div className="absolute bottom-4 right-4 z-50">
@@ -178,6 +198,19 @@ const GameLayout1: React.FC<GameLayout1Props> = ({
         </div>
       </div>
       
+      {/* Full screen image overlay */}
+      {isFullScreen && (
+        <div className="fixed inset-0 z-[9999] bg-black flex items-center justify-center">
+          <img
+            id="game-fullscreen-img"
+            src={image.url}
+            alt={image.title}
+            className="max-w-full max-h-full object-contain"
+            style={{ background: 'black' }}
+          />
+        </div>
+      )}
+
       <div className="flex-grow p-4 md:p-8">
         <div className="max-w-5xl mx-auto">
           <YearSelector 
