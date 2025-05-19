@@ -25,7 +25,7 @@ const ScoreCard: React.FC<ScoreCardProps> = ({
   
   return (
     <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-lg p-4">
-      <h2 className="text-2xl font-bold mb-4 text-history-primary dark:text-history-light">Your Score</h2>
+      <h2 className="text-2xl font-bold mb-4 text-history-primary dark:text-history-light">This Round</h2>
       
       <div className="grid grid-cols-2 gap-4 mb-4">
         <div className="flex flex-col items-center justify-center p-3 rounded-xl bg-history-primary/5 dark:bg-history-primary/10">

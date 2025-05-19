@@ -1,5 +1,5 @@
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react'; // Added useCallback
 
 export type HintType = 'where' | 'when' | 'what' | null;
 
@@ -72,12 +72,14 @@ export const useHint = (imageData = mockImageData) => {
   const canSelectHint = hintsUsed < hintsAllowed && !hintState.selectedHintType;
   
   // Function to check if a specific hint type can be selected
+  // This doesn't need useCallback as it's not returned directly,
+  // but its result 'canSelectHint' is used in selectHint's useCallback.
   const canSelectHintType = (hintType: HintType): boolean => {
     return canSelectHint && hintType !== null;
   };
 
-  const selectHint = (hintType: HintType) => {
-    if (!canSelectHint) return; // Already used max hints or already selected a hint
+  const selectHint = useCallback((hintType: HintType) => {
+    if (!canSelectHint) return; 
 
     let content: string | null = null;
     
@@ -101,10 +103,10 @@ export const useHint = (imageData = mockImageData) => {
       canSelectHintType: false
     });
     
-    setHintsUsed(hintsUsed + 1);
-  };
+    setHintsUsed(prevHintsUsed => prevHintsUsed + 1); // Use functional update
+  }, [canSelectHint, imageData, setHintState, setHintsUsed]); // Added dependencies
 
-  const resetHint = () => {
+  const resetHint = useCallback(() => {
     localStorage.removeItem('currentHint');
     setHintState({
       selectedHintType: null,
@@ -112,16 +114,16 @@ export const useHint = (imageData = mockImageData) => {
       canSelectHintType: true
     });
     setHintsUsed(0);
-  };
+  }, [setHintState, setHintsUsed]); // Added dependencies
 
   return {
     selectedHintType: hintState.selectedHintType,
     hintContent: hintState.hintContent,
-    canSelectHintType: hintState.canSelectHintType,
+    canSelectHintType: canSelectHint && hintState.canSelectHintType, // Clarified returned boolean
     hintsAllowed,
     hintsUsed,
-    canSelectHint,
-    selectHint,
-    resetHint
+    canSelectHint, // This is the computed boolean
+    selectHint,  // Memoized function
+    resetHint    // Memoized function
   };
 };

@@ -48,7 +48,7 @@ const ResultsHeader: React.FC<ResultsHeaderProps> = ({
                 ) : (
                   <ChevronRight className="h-4 w-4" />
                 )}
-                <span className="ml-2">{round === totalRounds ? 'Finish Game' : 'Next Round'}</span>
+                <span className="ml-2">{round === totalRounds ? 'Final Score' : 'Next Round'}</span>
               </Button>
             )}
           </div>

@@ -113,14 +113,29 @@ const SettingsTab: React.FC<SettingsTabProps> = ({
             </div>
           </RadioGroup>
         </div>
-        
+
+        {/* Sound Setting */}
+        <div>
+          <Label className="mb-3 block text-history-primary dark:text-history-light">Sound</Label>
+          <div className="flex items-center space-x-3">
+            <Switch
+              id="sound-toggle"
+              checked={updatedSettings.sound_enabled ?? true}
+              onCheckedChange={(checked) => setUpdatedSettings({ ...updatedSettings, sound_enabled: checked })}
+            />
+            <Label htmlFor="sound-toggle">
+              {updatedSettings.sound_enabled ? 'On' : 'Off'}
+            </Label>
+          </div>
+        </div>
+
         {/* Distance Units Setting */}
         <div>
           <Label className="mb-3 block text-history-primary dark:text-history-light">Distance Units</Label>
           <RadioGroup 
-            defaultValue={updatedSettings.distanceUnit} 
+            defaultValue={updatedSettings.distance_unit} 
             onValueChange={(value) => 
-              setUpdatedSettings({...updatedSettings, distanceUnit: value as 'km' | 'miles'})
+              setUpdatedSettings({...updatedSettings, distance_unit: value as 'km' | 'mi'})
             }
             className="flex flex-col sm:flex-row gap-4"
           >

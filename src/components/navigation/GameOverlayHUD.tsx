@@ -1,6 +1,6 @@
 import React from 'react';
 import { Button } from "@/components/ui/button";
-import { Clock, HelpCircle, Target, Zap, Home, Settings as SettingsIcon } from "lucide-react";
+import { HelpCircle, Target, Zap, Home, Settings } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { useNavigate } from 'react-router-dom';
 import { formatInteger } from '@/utils/format';
@@ -9,7 +9,6 @@ interface GameOverlayHUDProps {
   remainingTime?: string;
   rawRemainingTime?: number;
   onHintClick?: () => void;
-  onSettingsClick?: () => void;
   hintsUsed?: number;
   hintsAllowed?: number;
   selectedHintType?: string | null;
@@ -17,6 +16,7 @@ interface GameOverlayHUDProps {
   currentScore?: number;
   onNavigateHome: () => void;
   onConfirmNavigation: (navigateTo: () => void) => void;
+  onOpenSettingsModal?: () => void; // Added new prop
 }
 
 const GameOverlayHUD: React.FC<GameOverlayHUDProps> = ({
@@ -28,32 +28,34 @@ const GameOverlayHUD: React.FC<GameOverlayHUDProps> = ({
   selectedHintType,
   currentAccuracy = 0,
   currentScore = 0,
-  onSettingsClick,
   onNavigateHome,
-  onConfirmNavigation
+  onConfirmNavigation,
+  onOpenSettingsModal // Destructure new prop
 }) => {
   const hintsRemaining = hintsAllowed - hintsUsed;
   const isHintDisabled = hintsRemaining <= 0;
   
   const isTimeRunningOut = rawRemainingTime <= 10;
   const timerBadgeClass = isTimeRunningOut ? "bg-red-600 hover:bg-red-700" : "bg-primary";
+  const navigate = useNavigate(); // Keep for other potential uses if any
+  
+  const handleSettingsClick = () => {
+    if (onOpenSettingsModal) {
+      onOpenSettingsModal();
+    } else {
+      // Fallback or error if the prop isn't provided, though it should be.
+      console.warn('onOpenSettingsModal not provided to GameOverlayHUD');
+      // Optionally navigate to a dedicated settings page as a fallback:
+      // navigate('/test/settings'); 
+    }
+  };
 
   return (
     <div className="absolute inset-0 z-40 flex flex-col justify-between p-4 pointer-events-none">
-      {/* Top bar - Score in center, Settings and Home buttons on right */}
+      {/* Top bar - Score in center, Home button on right */}
       <div className="flex justify-between items-start w-full">
-        {/* Left - Settings button */}
-        <div className="flex pointer-events-auto">
-          <Button 
-            size="icon"
-            variant="outline"
-            onClick={onSettingsClick}
-            className="h-9 w-9 bg-white/70 hover:bg-white text-black rounded-full"
-            aria-label="Settings"
-          >
-            <SettingsIcon className="h-4 w-4" />
-          </Button>
-        </div>
+        {/* Empty div to balance the layout */}
+        <div className="w-9"></div>
         
         {/* Center - Score and accuracy */}
         <div className="flex bg-black/30 backdrop-blur-sm p-2 rounded-lg space-x-2 pointer-events-auto">
@@ -77,15 +79,26 @@ const GameOverlayHUD: React.FC<GameOverlayHUDProps> = ({
         
         {/* Right side - Home button */}
         <div className="flex pointer-events-auto">
-          <Button 
-            size="icon"
-            variant="outline"
-            onClick={() => onConfirmNavigation(onNavigateHome)}
-            className="h-9 w-9 bg-white/70 hover:bg-white text-black rounded-full"
-            aria-label="Home"
-          >
-            <Home className="h-4 w-4" />
-          </Button>
+          <div className="flex space-x-2">
+            <Button 
+              size="icon"
+              variant="outline"
+              onClick={handleSettingsClick}
+              className="h-9 w-9 bg-white/70 hover:bg-white text-black rounded-full"
+              aria-label="Settings"
+            >
+              <Settings className="h-4 w-4" />
+            </Button>
+            <Button 
+              size="icon"
+              variant="outline"
+              onClick={() => onConfirmNavigation(() => onNavigateHome())}
+              className="h-9 w-9 bg-white/70 hover:bg-white text-black rounded-full"
+              aria-label="Home"
+            >
+              <Home className="h-4 w-4" />
+            </Button>
+          </div>
         </div>
       </div>
 

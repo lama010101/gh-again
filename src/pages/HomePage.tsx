@@ -1,7 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Clock, Award, User, Settings as SettingsIcon } from "lucide-react";
-import Popup from '@/components/ui/Popup';
-import SettingsTab from '@/components/profile/SettingsTab';
+import GlobalSettingsModal from '@/components/GlobalSettingsModal';
 import { useAuth } from '@/contexts/AuthContext';
 import { UserSettings, fetchUserSettings, UserProfile, fetchUserProfile } from '@/utils/profile/profileService';
 import { GameModeCard } from "@/components/GameModeCard";
@@ -10,7 +9,7 @@ import { useNavigate } from 'react-router-dom';
 
 // Rename component
 const HomePage = () => {
-  const [isSettingsPopupOpen, setIsSettingsPopupOpen] = useState(false);
+  const [isSettingsModalOpen, setIsSettingsModalOpen] = useState(false);
   const { user } = useAuth();
   const [userSettings, setUserSettings] = useState<UserSettings | null>(null);
   const [profile, setProfile] = useState<UserProfile | null>(null); // For profile specific settings if any, or just user id
@@ -65,17 +64,18 @@ const HomePage = () => {
   };
 
   return (
-    <div className="container mx-auto px-4 py-12">
-      {/* Settings Button */}
-      <div className="flex justify-end mb-8">
-        <button
-          onClick={() => setIsSettingsPopupOpen(true)}
-          className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-history-primary hover:bg-history-primary/90 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-history-primary transition-colors"
-        >
-          <SettingsIcon className="h-5 w-5 mr-2" />
-          Settings
-        </button>
-      </div>
+    <div className="min-h-screen bg-gradient-to-b from-history-primary to-history-secondary text-white">
+      <div className="container mx-auto px-4 py-12">
+        {/* Settings Button */}
+        <div className="flex justify-end mb-8">
+          <button
+            onClick={() => setIsSettingsModalOpen(true)}
+            className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-history-primary hover:bg-history-primary/90 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-white transition-colors"
+          >
+            <SettingsIcon className="h-5 w-5 mr-2" />
+            Settings
+          </button>
+        </div>
 
       {/* Game modes section */}
       {gameContext ? (
@@ -124,27 +124,11 @@ const HomePage = () => {
         </div>
       )}
 
-{user && userSettings && (
-        <Popup 
-          isOpen={isSettingsPopupOpen} 
-          onClose={() => setIsSettingsPopupOpen(false)} 
-          ariaLabelledBy="home-settings-popup-title"
-        >
-          <div className="p-1">
-            {/* Using a generic title for the popup, SettingsTab itself has its own header */}
-            <h2 id="home-settings-popup-title" className="sr-only">Application Settings</h2> 
-            <SettingsTab 
-              userId={user.id} 
-              settings={userSettings} 
-              isLoading={isLoadingUserSettings} 
-              onSettingsUpdated={() => {
-                handleSettingsUpdated();
-                setIsSettingsPopupOpen(false); // Optionally close popup on save
-              }}
-            />
-          </div>
-        </Popup>
-      )}
+      <GlobalSettingsModal 
+        isOpen={isSettingsModalOpen} 
+        onClose={() => setIsSettingsModalOpen(false)} 
+      />
+</div>
     </div>
   );
 };

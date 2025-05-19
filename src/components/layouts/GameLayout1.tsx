@@ -1,17 +1,12 @@
-import React, { useState, useCallback } from 'react';
-import { Progress } from "@/components/ui/progress";
-import { useHint } from '@/hooks/useHint';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import GlobalSettingsModal from '@/components/settings/GlobalSettingsModal'; // Import the global settings modal
+import { useHint, type HintType } from '@/hooks/useHint';
 import HintModal from '@/components/HintModal';
-import Popup from '@/components/ui/Popup';
-import GameSettings from '@/components/game/GameSettings';
-
-// Import refactored components
 import GameOverlayHUD from '@/components/navigation/GameOverlayHUD';
 import YearSelector from '@/components/game/YearSelector';
 import LocationSelector from '@/components/game/LocationSelector';
 import TimerDisplay, { formatTime } from '@/components/game/TimerDisplay';
-import { GameImage, GuessCoordinates } from '@/contexts/GameContext'; // Import necessary types
-import { useGame } from '@/contexts/GameContext'; // Import useGame
+import { GameImage, GuessCoordinates, useGame } from '@/contexts/GameContext';
 
 export interface GameLayout1Props {
   onComplete?: () => void;
@@ -45,35 +40,90 @@ const GameLayout1: React.FC<GameLayout1Props> = ({
   onConfirmNavigation,
 }) => {
   const [isHintModalOpen, setIsHintModalOpen] = useState(false);
-  const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+  const [isSettingsModalOpen, setIsSettingsModalOpen] = useState(false);
   const { hintsAllowed, totalGameAccuracy, totalGameXP, roundTimerSec } = useGame();
   
-  const handleSettingsClick = useCallback(() => {
-    setIsSettingsOpen(true);
-  }, []);
+  // Handle timer timeout
+  const handleTimeout = () => {
+    if (onComplete) {
+      onComplete();
+    }
+  };
   
-  const handleSettingsClose = useCallback(() => {
-    setIsSettingsOpen(false);
-  }, []);
-  
+  // Initialize hint-related variables with default values
+  const [hintState, setHintState] = useState<{
+    selectedHintType: HintType;
+    hintContent: string | null;
+    hintsUsed: number;
+    canSelectHint: boolean;
+    selectHint: (hintType: HintType) => void;
+  }>({
+    selectedHintType: null,
+    hintContent: null,
+    hintsUsed: 0,
+    canSelectHint: false,
+    selectHint: () => {}
+  });
+
+  // Memoize the imageData object passed to useHint
+  const memoizedImageData = useMemo(() => {
+    if (!image) return undefined;
+    return {
+      location_name: image.location_name,
+      gps: { lat: image.latitude, lng: image.longitude },
+      year: image.year,
+      title: image.title,
+      description: image.description
+    };
+  }, [image]); // Dependency: only recompute if the image prop itself changes
+
+  // Destructure properties from useHint directly, passing memoizedImageData
   const {
-    selectedHintType,
-    hintContent,
-    selectHint,
-    hintsUsed,
-    canSelectHint,
-    canSelectHintType
-  } = useHint(image ? {
-    location_name: image.location_name,
-    gps: { lat: image.latitude, lng: image.longitude },
-    year: image.year,
-    title: image.title,
-    description: image.description
-  } : undefined);
+    selectedHintType: hookSelectedHintType,
+    hintContent: hookHintContent,
+    hintsUsed: hookHintsUsed,
+    canSelectHint: hookCanSelectHint,
+    selectHint: hookSelectHint
+  } = useHint(memoizedImageData) || {}; // Pass memoizedImageData
+
+  // Update hint state when hook returns data
+  useEffect(() => {
+    // Ensure the hook has provided its functions/data before trying to set state
+    // We can check for hookSelectHint as it's a function that should be present if the hook is active
+    if (hookSelectHint !== undefined) {
+      setHintState(prevState => {
+        const newSelectedHintType = hookSelectedHintType ?? null;
+        const newHintContent = hookHintContent ?? null;
+
+        // Only update state if the values have actually changed
+        if (
+          prevState.selectedHintType !== newSelectedHintType ||
+          prevState.hintContent !== newHintContent ||
+          prevState.hintsUsed !== hookHintsUsed ||
+          prevState.canSelectHint !== hookCanSelectHint ||
+          prevState.selectHint !== hookSelectHint // Relies on hookSelectHint being a stable reference
+        ) {
+          return {
+            selectedHintType: newSelectedHintType,
+            hintContent: newHintContent,
+            hintsUsed: hookHintsUsed,
+            canSelectHint: hookCanSelectHint,
+            selectHint: hookSelectHint,
+          };
+        }
+        return prevState; // No change, return previous state to avoid re-render
+      });
+    }
+  }, [hookSelectedHintType, hookHintContent, hookHintsUsed, hookCanSelectHint, hookSelectHint]); // Depend on individual, stable values
+
+  // Destructure the state for easier use
+  const { selectedHintType, hintContent, hintsUsed, canSelectHint, selectHint } = hintState;
+
+
 
   const handleHintClick = () => {
-    if (canSelectHint) {
-    setIsHintModalOpen(true);
+    if (hintState.canSelectHint) {
+      setIsHintModalOpen(true);
     } else {
       console.log("Cannot select hint now.");
     }
@@ -112,17 +162,17 @@ const GameLayout1: React.FC<GameLayout1Props> = ({
           hintsAllowed={hintsAllowed}
           currentAccuracy={totalGameAccuracy}
           currentScore={totalGameXP}
-          onSettingsClick={handleSettingsClick}
           onNavigateHome={onNavigateHome}
           onConfirmNavigation={onConfirmNavigation}
+          onOpenSettingsModal={() => setIsSettingsModalOpen(true)}
         />
         {/* Timer Display */}
         <div className="absolute bottom-4 right-4 z-50">
           <TimerDisplay 
-            remainingTime={remainingTime} 
+            remainingTime={remainingTime}
             setRemainingTime={setRemainingTime}
             isActive={isTimerActive}
-            onTimeout={onComplete}
+            onTimeout={handleTimeout}
             roundTimerSec={roundTimerSec}
           />
         </div>
@@ -146,34 +196,15 @@ const GameLayout1: React.FC<GameLayout1Props> = ({
       <HintModal
         isOpen={isHintModalOpen}
         onOpenChange={setIsHintModalOpen}
+        onSelectHint={selectHint}
         selectedHintType={selectedHintType}
         hintContent={hintContent}
-        onSelectHint={selectHint}
       />
-      
-      {/* Settings Popup */}
-      <Popup 
-        isOpen={isSettingsOpen} 
-        onClose={handleSettingsClose}
-        ariaLabelledBy="game-settings-title"
-      >
-        <div className="w-full max-w-md p-6">
-          <h2 id="game-settings-title" className="text-2xl font-bold mb-6 text-white text-center">
-            Game Settings
-          </h2>
-          <div className="bg-white dark:bg-gray-800 rounded-xl p-6 shadow-lg">
-            <GameSettings />
-            <div className="mt-6 flex justify-end">
-              <button
-                onClick={handleSettingsClose}
-                className="px-4 py-2 bg-history-primary text-white rounded-lg hover:bg-history-primary/90 transition-colors"
-              >
-                Close
-              </button>
-            </div>
-          </div>
-        </div>
-      </Popup>
+
+      <GlobalSettingsModal
+        isOpen={isSettingsModalOpen}
+        onClose={() => setIsSettingsModalOpen(false)}
+      />
     </div>
   );
 };

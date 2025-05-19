@@ -142,7 +142,7 @@ export const NavProfile = () => {
           </Link>
         </DropdownMenuItem>
         <DropdownMenuItem asChild>
-          <Link to="/settings" className="flex items-center">
+          <Link to="/test/profile?tab=settings" className="flex items-center">
             <SettingsIcon className="mr-2 h-4 w-4" />
             <span>Settings</span>
           </Link>

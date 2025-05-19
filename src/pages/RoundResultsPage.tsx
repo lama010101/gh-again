@@ -283,6 +283,7 @@ const RoundResultsPage = () => {
     <>
       <ResultsLayout2 
         onNext={handleNext} 
+        onConfirmNavigation={confirmNavigation}
         gameId={roomId || undefined} 
         round={roundNumber}
         isLoading={navigating}

@@ -26,13 +26,22 @@ const GameRoundPage = () => {
   const [pendingNavigation, setPendingNavigation] = useState<(() => void) | null>(null);
 
   const handleNavigateHome = useCallback(() => {
+    console.log("Attempting to navigate to /test"); // Added log
     navigate('/test');
+    console.log("Called navigate('/test')"); // Added log
   }, [navigate]);
 
   const confirmNavigation = useCallback((navigateTo: () => void) => {
     setPendingNavigation(() => navigateTo);
     setShowConfirmDialog(true);
   }, []);
+
+  const handleConfirmNavigation = useCallback(() => {
+    setShowConfirmDialog(false);
+    if (pendingNavigation) {
+      pendingNavigation();
+    }
+  }, [pendingNavigation]);
 
   const {
     images,
@@ -54,6 +63,7 @@ const GameRoundPage = () => {
   const [selectedYear, setSelectedYear] = useState(1932);
   const [remainingTime, setRemainingTime] = useState<number>(roundTimerSec > 0 ? roundTimerSec : 300);
   const [isTimerActive, setIsTimerActive] = useState<boolean>(roundTimerSec > 0);
+  const [hasTimedOut, setHasTimedOut] = useState<boolean>(false);
 
   // Get current round's hint usage
   const imageForRound = 
@@ -73,6 +83,98 @@ const GameRoundPage = () => {
     title: imageForRound.title,
     description: imageForRound.description
   } : null);
+
+  // Handle guess submission
+  const handleSubmitGuess = useCallback(() => {
+    if (!imageForRound) {
+      toast({
+        title: "Error",
+        description: "Cannot submit guess, image data is missing.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    console.log(`Submitting guess for round ${roundNumber}, Year: ${selectedYear}, Coords:`, currentGuess);
+    setIsSubmitting(true);
+    setIsTimerActive(false);
+
+    try {
+      const distance = currentGuess 
+        ? calculateDistanceKm(
+            currentGuess.lat,
+            currentGuess.lng,
+            imageForRound.latitude,
+            imageForRound.longitude
+          ) 
+        : null;
+
+      // Calculate scores using the standardized system
+      const { timeXP, locationXP, roundXP, roundPercent } = distance !== null 
+        ? calculateRoundScore(distance, selectedYear, imageForRound.year) 
+        : { timeXP: 0, locationXP: 0, roundXP: 0, roundPercent: 0 };
+      
+      // Apply hint penalties to the score (10% per hint used)
+      const finalScore = calculateHintPenalty(roundXP, hintsUsedThisRound);
+
+      console.log(`Distance: ${distance?.toFixed(2) ?? 'N/A'} km, Location XP: ${locationXP.toFixed(1)}, Time XP: ${timeXP.toFixed(1)}, Round XP: ${roundXP.toFixed(1)}, Hints Used: ${hintsUsedThisRound}, Final Score: ${finalScore}`);
+
+      recordRoundResult(
+        {
+          guessCoordinates: currentGuess,
+          distanceKm: distance,
+          score: finalScore,
+          guessYear: selectedYear,
+          xpWhere: locationXP,
+          xpWhen: timeXP,
+          accuracy: roundPercent
+        },
+        currentRoundIndex
+      );
+
+      setCurrentGuess(null);
+      navigate(`/test/game/room/${roomId}/round/${roundNumber}/results`);
+    } catch (error) {
+      console.error("Error during guess submission:", error);
+      toast({
+        title: "Submission Error",
+        description: "An error occurred while submitting your guess.",
+        variant: "destructive",
+      });
+    } finally {
+      setTimeout(() => setIsSubmitting(false), 300);
+    }
+  }, [currentGuess, imageForRound, toast, roundNumber, selectedYear, recordRoundResult, currentRoundIndex, navigate, roomId, hintsUsedThisRound]);
+
+  // Handle timer timeout
+  const handleTimeout = useCallback(() => {
+    if (isSubmitting) return;
+    
+    console.log("Timer expired. Auto-submitting guess.");
+    
+    toast({
+      title: "Time's Up!",
+      description: "Submitting your current guess automatically.",
+      variant: "info",
+      className: "bg-white/70 text-black border border-gray-200",
+    });
+    
+    // Disable the timer to prevent multiple submissions
+    setIsTimerActive(false);
+    setHasTimedOut(true);
+    
+    // Submit the guess
+    handleSubmitGuess();
+  }, [isSubmitting, handleSubmitGuess]);
+
+  // Reset timer when round changes
+  useEffect(() => {
+    setRemainingTime(roundTimerSec > 0 ? roundTimerSec : 300);
+    setIsTimerActive(roundTimerSec > 0);
+    setHasTimedOut(false);
+  }, [roundNumber, roundTimerSec]);
+
+
 
   useEffect(() => {
     // Redirect if roomId doesn't match or roundNumber is invalid
@@ -94,89 +196,6 @@ const GameRoundPage = () => {
     console.log(`Guess placed at: Lat ${lat}, Lng ${lng}`);
     setCurrentGuess({ lat, lng });
   };
-
-  const handleSubmitGuess = useCallback(() => {
-    if (!imageForRound) {
-        toast({
-            title: "Error",
-            description: "Cannot submit guess, image data is missing.",
-            variant: "destructive",
-        });
-        return;
-    }
-
-    console.log(`Submitting guess for round ${roundNumber}, Year: ${selectedYear}, Coords:`, currentGuess);
-    setIsSubmitting(true);
-    setIsTimerActive(false);
-
-    try {
-        const distance = currentGuess 
-            ? calculateDistanceKm(
-            currentGuess.lat,
-            currentGuess.lng,
-            imageForRound.latitude,
-            imageForRound.longitude
-            ) 
-            : null;
-
-        // Calculate scores using the standardized system
-        const { timeXP, locationXP, roundXP, roundPercent } = distance !== null 
-            ? calculateRoundScore(distance, selectedYear, imageForRound.year) 
-            : { timeXP: 0, locationXP: 0, roundXP: 0, roundPercent: 0 };
-        
-        // Apply hint penalties to the score (10% per hint used)
-        const finalScore = calculateHintPenalty(roundXP, hintsUsedThisRound);
-
-        console.log(`Distance: ${distance?.toFixed(2) ?? 'N/A'} km, Location XP: ${locationXP.toFixed(1)}, Time XP: ${timeXP.toFixed(1)}, Round XP: ${roundXP.toFixed(1)}, Hints Used: ${hintsUsedThisRound}, Final Score: ${finalScore}`);
-
-        recordRoundResult(
-            {
-                guessCoordinates: currentGuess,
-                distanceKm: distance,
-                score: finalScore,
-                guessYear: selectedYear,
-                xpWhere: locationXP,
-                xpWhen: timeXP,
-                accuracy: roundPercent
-            },
-            currentRoundIndex
-        );
-
-        setCurrentGuess(null);
-
-        navigate(`/test/game/room/${roomId}/round/${roundNumber}/results`);
-
-    } catch (error) {
-        console.error("Error during guess submission:", error);
-        toast({
-            title: "Submission Error",
-            description: "An error occurred while submitting your guess.",
-            variant: "destructive",
-        });
-    } finally {
-        setTimeout(() => setIsSubmitting(false), 300);
-    }
-  }, [currentGuess, imageForRound, toast, roundNumber, selectedYear, recordRoundResult, currentRoundIndex, navigate, roomId, hintsUsedThisRound]);
-
-  const handleTimeout = useCallback(() => {
-    console.log("Timer expired. Auto-submitting guess.");
-    // Prevent multiple submissions
-    if (isSubmitting) return;
-    
-    toast({
-        title: "Time's Up!",
-        description: "Submitting your current guess automatically.",
-        variant: "info",
-        className: "bg-white/70 text-black border border-gray-200",
-    });
-    
-    // Disable the timer to prevent multiple submissions
-    setIsTimerActive(false);
-    
-    // Submit the guess
-    handleSubmitGuess();
-  }, [handleSubmitGuess, isSubmitting]);
-
   // Loading state from context
   if (isContextLoading) {
     return (
@@ -235,11 +254,11 @@ const GameRoundPage = () => {
           <SegmentedProgressBar current={roundNumber} total={ROUNDS_PER_GAME} className="w-full" />
         </div>
       </div>
-       
-       {/* Render the GameLayout1, passing down the image and map guess handler */}
+
+      {/* Main game content */}
       <GameLayout1
-        onComplete={handleTimeout}
-        gameMode={"solo"}
+        onComplete={handleSubmitGuess}
+        gameMode="solo"
         currentRound={roundNumber}
         image={imageForRound}
         onMapGuess={handleMapGuess}
@@ -276,10 +295,7 @@ const GameRoundPage = () => {
       <ConfirmNavigationDialog
         isOpen={showConfirmDialog}
         onClose={() => setShowConfirmDialog(false)}
-        onConfirm={() => {
-          setShowConfirmDialog(false);
-          pendingNavigation?.();
-        }}
+        onConfirm={handleConfirmNavigation}
       />
     </div> // Closing tag for the main container
   );

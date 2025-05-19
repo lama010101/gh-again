@@ -11,7 +11,8 @@ import {
   Calendar,
   Star,
   Target,
-  Zap
+  Zap,
+  Home
 } from "lucide-react";
 import ResultsHeader from "@/components/results/ResultsHeader";
 // Import the specific RoundResult type this component uses
@@ -59,6 +60,7 @@ const FullscreenHandler: React.FC = () => {
 // Define proper props interface
 interface ResultsLayout2Props {
   onNext?: () => void;
+  onConfirmNavigation?: (navigateTo: () => void) => void;
   round?: number;
   gameId?: string;
   isLoading?: boolean;
@@ -69,6 +71,7 @@ interface ResultsLayout2Props {
 
 const ResultsLayout2: React.FC<ResultsLayout2Props> = ({ 
   onNext, 
+  onConfirmNavigation,
   round = 1, 
   gameId,
   isLoading = false,
@@ -499,30 +502,41 @@ const ResultsLayout2: React.FC<ResultsLayout2Props> = ({
                 </div>
               </div>
             </div>
+            
+            {/* Home button */}
+            <div className="mt-6 flex justify-center">
+              <Button 
+                variant="outline"
+                size="icon"
+                onClick={() => {
+                  const navigateHome = () => window.location.href = '/test';
+                  if (onConfirmNavigation) {
+                    onConfirmNavigation(navigateHome);
+                  } else {
+                    navigateHome();
+                  }
+                }}
+                className="h-12 w-12 rounded-full bg-white/90 hover:bg-white shadow-md"
+                aria-label="Return to home"
+              >
+                <Home className="h-5 w-5" />
+              </Button>
+            </div>
           </div>
         </div>
         
-        {/* Sticky footer with action buttons for mobile only */}
-        <div className="md:hidden sticky bottom-4 mt-6 space-y-2 px-4">
-          <div className="flex space-x-2">
+        {/* Sticky footer with action button for mobile only */}
+        <div className="md:hidden sticky bottom-4 mt-6 px-4">
+          {onNext && (
             <Button 
-              variant="outline"
-              onClick={() => window.location.href = '/test'}
-              className="flex-1 py-4 font-medium text-muted-foreground hover:text-foreground"
+              onClick={onNext}
+              disabled={isLoading}
+              className="w-full py-6 font-semibold text-lg bg-history-primary hover:bg-history-primary/90 text-white shadow-lg rounded-xl"
             >
-              Home
+              {round === 5 ? 'Final Score' : 'Next Round'}
+              <ChevronRight className="ml-2 h-5 w-5" />
             </Button>
-            {onNext && (
-              <Button 
-                onClick={onNext}
-                disabled={isLoading}
-                className="flex-1 py-6 font-semibold text-lg bg-history-primary hover:bg-history-primary/90 text-white shadow-lg rounded-xl"
-              >
-                Next Round
-                <ChevronRight className="ml-2 h-5 w-5" />
-              </Button>
-            )}
-          </div>
+          )}
         </div>
       </div>
       
