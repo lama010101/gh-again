@@ -1,11 +1,52 @@
 
+/* Base map container */
 .leaflet-container {
   background-color: hsl(var(--background));
+  transition: all 0.3s ease;
 }
 
+/* Fullscreen mode */
 .leaflet-fullscreen-on {
-  height: 100vh !important;
-  width: 100vw !important;
+  position: fixed !important;
+  top: 0 !important;
+  left: 0 !important;
+  right: 0 !important;
+  bottom: 0 !important;
+  width: 100% !important;
+  height: 100% !important;
+  z-index: 9999 !important; /* Ensure map is above all other elements */
+  margin: 0 !important;
+  padding: 0 !important;
+}
+
+/* When in fullscreen mode, hide any overflow and HUD elements */
+body:has(.leaflet-fullscreen-on) {
+  overflow: hidden;
+}
+
+/* Hide HUD elements when map is in fullscreen */
+.leaflet-fullscreen-on ~ .hud-element,
+.map-fullscreen-active .hud-element,
+body:has(.leaflet-fullscreen-on) .hud-element {
+  display: none !important;
+  visibility: hidden !important;
+  opacity: 0 !important;
+  pointer-events: none !important;
+  z-index: -1 !important;
+}
+
+/* Hide specifically the game overlay HUD in fullscreen */
+body:has(.leaflet-fullscreen-on) [class*="GameOverlay"],
+.map-fullscreen-active [class*="GameOverlay"],
+.leaflet-fullscreen-on ~ [class*="GameOverlay"] {
+  display: none !important;
+  visibility: hidden !important;
+  opacity: 0 !important;
+}
+
+/* Ensure map controls stay visible in fullscreen */
+.leaflet-fullscreen-on .leaflet-control {
+  z-index: 10000 !important;
 }
 
 .leaflet-control-fullscreen a {

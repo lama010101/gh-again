@@ -171,29 +171,21 @@ const GameLayout1: React.FC<GameLayout1Props> = ({
           alt={image.title}
           className="w-full h-full object-cover"
         />
-        <GameOverlayHUD 
-          selectedHintType={selectedHintType}
-          remainingTime={isTimerActive ? formatTime(remainingTime) : formatTime(0)}
-          rawRemainingTime={isTimerActive ? remainingTime : 0}
-          onHintClick={handleHintClick}
-          hintsUsed={hintsUsed || 0}
-          hintsAllowed={hintsAllowed}
-          currentAccuracy={totalGameAccuracy}
-          currentScore={totalGameXP}
-          onNavigateHome={onNavigateHome}
-          onConfirmNavigation={onConfirmNavigation}
-          onOpenSettingsModal={() => setIsSettingsModalOpen(true)}
-          imageUrl={image.url}
-          onFullscreen={handleFullscreen}
-        />
-        {/* Timer Display */}
-        <div className="absolute bottom-4 right-4 z-50">
-          <TimerDisplay 
-            remainingTime={remainingTime}
-            setRemainingTime={setRemainingTime}
-            isActive={isTimerActive}
-            onTimeout={handleTimeout}
-            roundTimerSec={roundTimerSec}
+        <div className={`hud-element ${isFullScreen ? 'hidden' : ''}`}>
+          <GameOverlayHUD 
+            selectedHintType={selectedHintType}
+            remainingTime={isTimerActive ? formatTime(remainingTime) : formatTime(0)}
+            rawRemainingTime={isTimerActive ? remainingTime : 0}
+            onHintClick={handleHintClick}
+            hintsUsed={hintsUsed || 0}
+            hintsAllowed={hintsAllowed}
+            currentAccuracy={totalGameAccuracy}
+            currentScore={totalGameXP}
+            onNavigateHome={onNavigateHome}
+            onConfirmNavigation={onConfirmNavigation}
+            onOpenSettingsModal={() => setIsSettingsModalOpen(true)}
+            imageUrl={image.url}
+            onFullscreen={handleFullscreen}
           />
         </div>
       </div>
@@ -208,6 +200,22 @@ const GameLayout1: React.FC<GameLayout1Props> = ({
             className="max-w-full max-h-full object-contain"
             style={{ background: 'black' }}
           />
+          
+          {/* Fullscreen exit button */}
+          <button 
+            onClick={() => {
+              if (document.exitFullscreen) {
+                document.exitFullscreen();
+              }
+              setIsFullScreen(false);
+            }}
+            className="fixed top-4 right-4 z-[10000] p-2 rounded-full bg-black/50 text-white hover:bg-black/70 transition-colors"
+            aria-label="Exit fullscreen"
+          >
+            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M8 3v3a2 2 0 0 1-2 2H3m18 0h-3a2 2 0 0 1-2-2V3m0 18v-3a2 2 0 0 1 2-2h3M3 16h3a2 2 0 0 1 2 2v3"/>
+            </svg>
+          </button>
         </div>
       )}
 

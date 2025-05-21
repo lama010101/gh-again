@@ -272,12 +272,12 @@ const GameRoundPage = () => {
       />
 
       {/* Submit Guess Button */}
-      <div className="fixed bottom-0 left-0 right-0 p-4 bg-gradient-to-t from-background via-background to-transparent z-10 flex justify-center">
+      <div className="submit-button-container fixed bottom-0 left-0 right-0 p-4 bg-gradient-to-t from-background via-background to-transparent z-[10001] flex justify-center">
         <Button
           onClick={handleSubmitGuess}
           disabled={isSubmitting || (roundTimerSec > 0 && remainingTime <= 0)}
           size="lg"
-          className={`w-full max-w-md shadow-lg ${
+          className={`submit-guess w-full max-w-md shadow-lg ${
             roundTimerSec > 0 && remainingTime <= 0 ? 'opacity-75 cursor-not-allowed' : ''
           }`}
         >

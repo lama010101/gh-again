@@ -16,9 +16,10 @@ interface GameOverlayHUDProps {
   currentScore?: number;
   onNavigateHome: () => void;
   onConfirmNavigation: (navigateTo: () => void) => void;
-  onOpenSettingsModal?: () => void; // Added new prop
+  onOpenSettingsModal?: () => void;
   onFullscreen?: () => void;
   imageUrl?: string;
+  className?: string;
 }
 
 const GameOverlayHUD: React.FC<GameOverlayHUDProps> = ({
@@ -32,9 +33,10 @@ const GameOverlayHUD: React.FC<GameOverlayHUDProps> = ({
   currentScore = 0,
   onNavigateHome,
   onConfirmNavigation,
-  onOpenSettingsModal, // Destructure new prop
+  onOpenSettingsModal,
   onFullscreen,
-  imageUrl
+  imageUrl,
+  className
 }) => {
   const hintsRemaining = hintsAllowed - hintsUsed;
   const isHintDisabled = hintsRemaining <= 0;
@@ -55,7 +57,7 @@ const GameOverlayHUD: React.FC<GameOverlayHUDProps> = ({
   };
 
   return (
-    <div className="absolute inset-0 z-40 flex flex-col justify-between p-4 pointer-events-none">
+    <div className={`absolute inset-0 z-40 flex flex-col justify-between p-4 pointer-events-none ${className || ''}`}>
       {/* Top bar - Score in center, Home button on right */}
       <div className="flex justify-between items-start w-full">
         {/* Empty div to balance the layout */}

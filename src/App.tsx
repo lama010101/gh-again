@@ -88,7 +88,12 @@ const App = () => {
 
   return (
     <React.StrictMode>
-      <ThemeProvider attribute="class" defaultTheme="system" enableSystem>
+      <ThemeProvider 
+        attribute="class" 
+        defaultTheme="light" 
+        enableSystem={false}
+        disableTransitionOnChange
+      >
         <QueryClientProvider client={queryClient}>
           <LogProvider>
             <AuthProvider>
