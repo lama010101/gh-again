@@ -95,7 +95,23 @@ const AuthPage = () => {
               <div className="relative flex justify-center text-xs uppercase"><span className="bg-background px-2 text-muted-foreground">Or continue with</span></div>
             </div>
             {/* Google Button */}
-            <Button className="w-full border border-input bg-background hover:bg-accent hover:text-accent-foreground" disabled={authLoading || isSubmitting} onClick={async () => { /* ... Google sign-in logic ... */ }}>Sign in with Google</Button>
+            <Button
+              className="w-full border border-input bg-background hover:bg-accent hover:text-accent-foreground"
+              disabled={authLoading || isSubmitting}
+              onClick={async () => {
+                try {
+                  await signInWithGoogle();
+                } catch (error: any) {
+                  toast({
+                    variant: "destructive",
+                    title: "Google Sign In Failed",
+                    description: error?.message || "Google authentication failed. Please try again.",
+                  });
+                }
+              }}
+            >
+              Sign in with Google
+            </Button>
             {/* Guest Button */}
             <Button className="w-full border border-input bg-background hover:bg-accent hover:text-accent-foreground" onClick={async () => { /* ... Guest login logic ... */ }} disabled={authLoading || isSubmitting}>Continue as Guest</Button>
           </CardFooter>
