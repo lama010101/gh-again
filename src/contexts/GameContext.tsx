@@ -95,6 +95,61 @@ export const GameProvider: React.FC<GameProviderProps> = ({ children }) => {
   const [globalXP, setGlobalXP] = useState<number>(0);
   const navigate = useNavigate();
 
+  // Save game state to localStorage whenever it changes
+  useEffect(() => {
+    if (roomId && images.length > 0) {
+      const gameState = {
+        roomId,
+        images,
+        roundResults,
+        hintsAllowed,
+        roundTimerSec,
+        totalGameAccuracy,
+        totalGameXP,
+        timestamp: Date.now()
+      };
+      localStorage.setItem('gh_current_game', JSON.stringify(gameState));
+    }
+  }, [roomId, images, roundResults, hintsAllowed, roundTimerSec, totalGameAccuracy, totalGameXP]);
+
+  // Load game state from localStorage on mount
+  useEffect(() => {
+    const loadGameState = () => {
+      try {
+        const savedGame = localStorage.getItem('gh_current_game');
+        if (savedGame) {
+          const gameState = JSON.parse(savedGame);
+          
+          // Only load if the saved game is less than 24 hours old
+          const TWENTY_FOUR_HOURS = 24 * 60 * 60 * 1000;
+          if (Date.now() - (gameState.timestamp || 0) < TWENTY_FOUR_HOURS) {
+            setRoomId(gameState.roomId);
+            setImages(gameState.images || []);
+            setRoundResults(gameState.roundResults || []);
+            setHintsAllowed(gameState.hintsAllowed || 3);
+            setRoundTimerSec(gameState.roundTimerSec || 60);
+            setTotalGameAccuracy(gameState.totalGameAccuracy || 0);
+            setTotalGameXP(gameState.totalGameXP || 0);
+            console.log('Loaded saved game state:', gameState);
+          } else {
+            // Clear old game state
+            localStorage.removeItem('gh_current_game');
+          }
+        }
+      } catch (error) {
+        console.error('Error loading game state:', error);
+        localStorage.removeItem('gh_current_game');
+      }
+    };
+
+    loadGameState();
+  }, []);
+
+  // Clear saved game state when component unmounts or game is reset
+  const clearSavedGameState = useCallback(() => {
+    localStorage.removeItem('gh_current_game');
+  }, []);
+
   // Function to fetch global metrics from Supabase or localStorage
   const fetchGlobalMetrics = useCallback(async () => {
     try {
@@ -237,6 +292,7 @@ export const GameProvider: React.FC<GameProviderProps> = ({ children }) => {
   // Function to fetch images and start a new game
   const startGame = useCallback(async () => {
     console.log("Starting new game...");
+    clearSavedGameState(); // Clear any existing saved state
     setIsLoading(true);
     setError(null);
     setImages([]); // Clear previous images
@@ -333,7 +389,7 @@ export const GameProvider: React.FC<GameProviderProps> = ({ children }) => {
       setIsLoading(false);
       alert('Failed to start game. Please try again.');
     }
-  }, [navigate, hintsAllowed, roundTimerSec]);
+  }, [navigate, hintsAllowed, roundTimerSec, clearSavedGameState]);
 
   // Function to record the result of a round
   const recordRoundResult = useCallback((resultData: Omit<RoundResult, 'roundIndex' | 'imageId' | 'actualCoordinates'>, currentRoundIndex: number) => {
@@ -383,6 +439,7 @@ export const GameProvider: React.FC<GameProviderProps> = ({ children }) => {
   // Function to reset game state
   const resetGame = useCallback(() => {
     console.log("Resetting game state...");
+    clearSavedGameState();
     setRoomId(null);
     setImages([]);
     setRoundResults([]); // Clear results on reset
@@ -390,7 +447,7 @@ export const GameProvider: React.FC<GameProviderProps> = ({ children }) => {
     setIsLoading(false);
     // Optionally navigate home or to a new game setup screen
     // navigate('/'); // Example: navigate home
-  }, []);
+  }, [clearSavedGameState]);
 
   // Value provided by the context
   const value: GameContextState = {

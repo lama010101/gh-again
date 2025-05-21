@@ -4,8 +4,9 @@ import { useNavigate, useParams } from "react-router-dom";
 import { Share2, Loader, Home, MapPin, Calendar, ArrowLeft, Target, Zap } from "lucide-react";
 import { useGame } from "@/contexts/GameContext";
 import { Badge } from "@/components/ui/badge";
-import MainNavbar from "@/components/navigation/MainNavbar";
 import { useEffect } from "react";
+import Logo from "@/components/Logo";
+import { NavProfile } from "@/components/NavProfile";
 import { formatInteger } from '@/utils/format';
 import { updateUserMetrics } from '@/utils/profile/profileService';
 import { supabase } from '@/integrations/supabase/client';
@@ -25,7 +26,9 @@ const FinalResultsPage = () => {
     startGame,
     resetGame,
     roundResults,
-    fetchGlobalMetrics
+    fetchGlobalMetrics,
+    globalXP = 0,
+    globalAccuracy = 0
   } = useGame();
   
   // Update user metrics and fetch global scores when the final results page is loaded
@@ -178,13 +181,35 @@ const FinalResultsPage = () => {
 
   return (
     <div className="min-h-screen bg-history-light dark:bg-history-dark flex flex-col">
-      {/* MainNavbar at the top - exactly like Home page */}
-      <MainNavbar onMenuClick={() => console.log('Menu clicked')} />
+      {/* Navbar from TestLayout - exactly like Home page */}
+      <nav className="sticky top-0 z-50 bg-history-primary text-white shadow-md">
+        <div className="max-w-7xl mx-auto px-4">
+          <div className="flex items-center justify-between h-16">
+            <div className="flex items-center">
+              <Logo />
+            </div>
+            
+            {/* Show global stats outside of games */}
+            <div className="flex items-center gap-2">
+              <Badge variant="accuracy" className="flex items-center gap-1 text-sm" aria-label={`Global Accuracy: ${Math.round(globalAccuracy || 0)}%`}>
+                <Target className="h-4 w-4" />
+                <span>{Math.round(globalAccuracy || 0)}%</span>
+              </Badge>
+              <Badge variant="xp" className="flex items-center gap-1 text-sm" aria-label={`Global XP: ${Math.round(globalXP || 0)}`}>
+                <Zap className="h-4 w-4" />
+                <span>{Math.round(globalXP || 0)}</span>
+              </Badge>
+            </div>
+            
+            <NavProfile />
+          </div>
+        </div>
+      </nav>
       
-      <div className="flex-grow p-8">
-        <div className="max-w-4xl mx-auto">
-          <div className="text-center mb-12">
-            <h1 className="text-4xl font-bold mb-4 text-history-primary dark:text-history-light">
+      <div className="flex-grow p-4 sm:p-6 md:p-8">
+        <div className="max-w-4xl mx-auto w-full">
+          <div className="text-center mb-8 sm:mb-12">
+            <h1 className="text-3xl sm:text-4xl font-bold mb-3 sm:mb-4 text-history-primary dark:text-history-light">
               Final Score
             </h1>
             <div className="flex justify-center items-center gap-4 mt-2">
@@ -322,33 +347,38 @@ const FinalResultsPage = () => {
           })}
         </div>
 
-        <div className="flex flex-col sm:flex-row gap-4 justify-center">
-          <Button
-            onClick={() => {
-              // Share functionality would go here
-              alert("Share functionality coming soon!");
-            }}
-            variant="outline"
-            className="border-history-primary text-history-primary gap-2"
-          >
-            <Share2 size={16} />
-            Share Score
-          </Button>
+        <div className="mt-8 flex flex-col sm:flex-row justify-center gap-4 w-full max-w-md mx-auto">
           <Button
             onClick={handlePlayAgain}
-            className="bg-history-primary hover:bg-history-primary/90 text-white gap-2"
+            className="flex-1 bg-history-primary hover:bg-history-primary/90 text-white gap-2 py-6 text-base"
+            size="lg"
           >
-            <Loader size={16} />
+            <Loader size={20} />
             Play Again
           </Button>
-          <Button
-            onClick={handleHome}
-            variant="secondary"
-            className="gap-2"
-          >
-            <Home size={16} />
-            Home
-          </Button>
+          <div className="flex flex-col sm:flex-row gap-4 w-full sm:w-auto">
+            <Button
+              onClick={() => {
+                // Share functionality would go here
+                alert("Share functionality coming soon!");
+              }}
+              variant="outline"
+              className="w-full sm:w-auto border-history-primary text-history-primary hover:bg-history-primary/10 gap-2 py-6 text-base"
+              size="lg"
+            >
+              <Share2 size={20} />
+              Share
+            </Button>
+            <Button
+              onClick={handleHome}
+              variant="outline"
+              className="w-full sm:w-auto gap-2 py-6 text-base"
+              size="lg"
+            >
+              <Home size={20} />
+              Home
+            </Button>
+          </div>
         </div>
       </div>
       </div>

@@ -1,12 +1,17 @@
 import { useNavigate, useParams } from 'react-router-dom';
 import { useEffect, useState, useCallback } from 'react';
 import GameLayout1 from "@/components/layouts/GameLayout1";
-import { Loader } from "lucide-react";
+import { Loader, MapPin } from "lucide-react";
 import { useGame, GuessCoordinates } from '@/contexts/GameContext';
 import { useToast } from "@/components/ui/use-toast";
-import SubmitGuessButton from '@/components/game/SubmitGuessButton';
 import { Button } from '@/components/ui/button';
 import { SegmentedProgressBar } from '@/components/ui';
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 import { ConfirmNavigationDialog } from '@/components/game/ConfirmNavigationDialog';
 import { useHint } from '@/hooks/useHint';
 import { calculateRoundScore as calculateHintPenalty } from '@/utils/scoring';
@@ -64,6 +69,7 @@ const GameRoundPage = () => {
   const [remainingTime, setRemainingTime] = useState<number>(roundTimerSec > 0 ? roundTimerSec : 300);
   const [isTimerActive, setIsTimerActive] = useState<boolean>(roundTimerSec > 0);
   const [hasTimedOut, setHasTimedOut] = useState<boolean>(false);
+  const [hasGuessedLocation, setHasGuessedLocation] = useState<boolean>(false);
 
   // Get current round's hint usage
   const imageForRound = 
@@ -90,6 +96,16 @@ const GameRoundPage = () => {
       toast({
         title: "Error",
         description: "Cannot submit guess, image data is missing.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    // Check if user has made a location guess
+    if (!hasGuessedLocation) {
+      toast({
+        title: "Location Required",
+        description: "Please select a location on the map before submitting your guess.",
         variant: "destructive",
       });
       return;
@@ -150,8 +166,52 @@ const GameRoundPage = () => {
   const handleTimeout = useCallback(() => {
     if (isSubmitting) return;
     
-    console.log("Timer expired. Auto-submitting guess.");
+    console.log("Timer expired. Checking for location guess...");
     
+    // If no location was guessed, record a 0 score
+    if (!hasGuessedLocation) {
+      console.log("No location guessed before timeout. Recording 0 score.");
+      setIsSubmitting(true);
+      setIsTimerActive(false);
+      setHasTimedOut(true);
+      
+      try {
+        recordRoundResult(
+          {
+            guessCoordinates: null,
+            distanceKm: null,
+            score: 0,
+            guessYear: selectedYear,
+            xpWhere: 0,
+            xpWhen: 0,
+            accuracy: 0
+          },
+          currentRoundIndex
+        );
+        
+        toast({
+          title: "Time's Up!",
+          description: "No location was selected. Your score for this round is 0.",
+          variant: "info",
+          className: "bg-white/70 text-black border border-gray-200",
+        });
+        
+        // Navigate to results after a short delay
+        setTimeout(() => {
+          navigate(`/test/game/room/${roomId}/round/${roundNumber}/results`);
+          setIsSubmitting(false);
+        }, 2000);
+        
+      } catch (error) {
+        console.error("Error recording timeout result:", error);
+        setIsSubmitting(false);
+      }
+      
+      return;
+    }
+    
+    // If there is a location guess, proceed with normal submission
+    console.log("Submitting existing guess due to timeout");
     toast({
       title: "Time's Up!",
       description: "Submitting your current guess automatically.",
@@ -163,15 +223,17 @@ const GameRoundPage = () => {
     setIsTimerActive(false);
     setHasTimedOut(true);
     
-    // Submit the guess
+    // Submit the existing guess
     handleSubmitGuess();
-  }, [isSubmitting, handleSubmitGuess]);
+  }, [isSubmitting, hasGuessedLocation, selectedYear, currentRoundIndex, roundNumber, roomId, navigate, recordRoundResult, handleSubmitGuess, toast]);
 
-  // Always reset timer when roundTimerSec or roundNumber changes
+  // Reset timer and guess state when round changes
   useEffect(() => {
     setRemainingTime(roundTimerSec > 0 ? roundTimerSec : 300);
     setIsTimerActive(roundTimerSec > 0);
     setHasTimedOut(false);
+    setHasGuessedLocation(false);
+    setCurrentGuess(null);
   }, [roundNumber, roundTimerSec]);
 
 
@@ -195,6 +257,7 @@ const GameRoundPage = () => {
   const handleMapGuess = (lat: number, lng: number) => {
     console.log(`Guess placed at: Lat ${lat}, Lng ${lng}`);
     setCurrentGuess({ lat, lng });
+    setHasGuessedLocation(true);
   };
   // Loading state from context
   if (isContextLoading) {
@@ -273,23 +336,39 @@ const GameRoundPage = () => {
 
       {/* Submit Guess Button */}
       <div className="submit-button-container fixed bottom-0 left-0 right-0 p-4 bg-gradient-to-t from-background via-background to-transparent z-[10001] flex justify-center">
-        <Button
-          onClick={handleSubmitGuess}
-          disabled={isSubmitting || (roundTimerSec > 0 && remainingTime <= 0)}
-          size="lg"
-          className={`submit-guess w-full max-w-md shadow-lg ${
-            roundTimerSec > 0 && remainingTime <= 0 ? 'opacity-75 cursor-not-allowed' : ''
-          }`}
-        >
-          {isSubmitting ? (
-            <>
-              <Loader className="mr-2 h-4 w-4 animate-spin" />
-              Submitting...
-            </>
-          ) : (
-            roundTimerSec > 0 && remainingTime <= 0 ? 'Time\'s Up!' : 'Submit Guess'
-          )}
-        </Button>
+        <TooltipProvider>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <div className="w-full max-w-md">
+                <Button
+                  onClick={handleSubmitGuess}
+                  disabled={isSubmitting || (roundTimerSec > 0 && remainingTime <= 0) || !hasGuessedLocation}
+                  size="lg"
+                  className={`submit-guess w-full shadow-lg ${
+                    (roundTimerSec > 0 && remainingTime <= 0) || !hasGuessedLocation ? 'opacity-75 cursor-not-allowed' : ''
+                  }`}
+                >
+                  {isSubmitting ? (
+                    <>
+                      <Loader className="mr-2 h-4 w-4 animate-spin" />
+                      Submitting...
+                    </>
+                  ) : (
+                    roundTimerSec > 0 && remainingTime <= 0 ? 'Time\'s Up!' : 'Submit Guess'
+                  )}
+                </Button>
+              </div>
+            </TooltipTrigger>
+            {!hasGuessedLocation && (
+              <TooltipContent>
+                <div className="flex items-center">
+                  <MapPin className="mr-2 h-4 w-4" />
+                  <span>Please place a guess on the map before submitting</span>
+                </div>
+              </TooltipContent>
+            )}
+          </Tooltip>
+        </TooltipProvider>
       </div>
       {/* Confirmation Dialog */}
       <ConfirmNavigationDialog
