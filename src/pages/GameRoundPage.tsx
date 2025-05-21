@@ -167,7 +167,7 @@ const GameRoundPage = () => {
     handleSubmitGuess();
   }, [isSubmitting, handleSubmitGuess]);
 
-  // Reset timer when round changes
+  // Always reset timer when roundTimerSec or roundNumber changes
   useEffect(() => {
     setRemainingTime(roundTimerSec > 0 ? roundTimerSec : 300);
     setIsTimerActive(roundTimerSec > 0);

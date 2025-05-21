@@ -29,13 +29,21 @@ const GameSettings: React.FC = () => {
       : `${minutes} min`;
   };
 
-  // Update context when values change
+  // Update context and save to localStorage when values change
   useEffect(() => {
     setHintsAllowed(localHints);
-  }, [localHints, setHintsAllowed]);
+    // Save to localStorage
+    const settings = {
+      hintsAllowed: localHints,
+      roundTimerSec: timerEnabled ? localTimer : 0
+    };
+    localStorage.setItem('gh_game_settings', JSON.stringify(settings));
+  }, [localHints, setHintsAllowed, localTimer, timerEnabled]);
 
   useEffect(() => {
+    // Update the timer in context immediately when it changes
     setRoundTimerSec(timerEnabled ? localTimer : 0);
+    console.log("Timer updated in GameSettings:", timerEnabled ? localTimer : 0);
   }, [localTimer, timerEnabled, setRoundTimerSec]);
 
   // Load settings from localStorage on mount

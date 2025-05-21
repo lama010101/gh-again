@@ -48,11 +48,10 @@ const TimerDisplay: React.FC<TimerDisplayProps> = ({
     }
   }, [remainingTime, isActive, soundEnabled]);
   
-  // Initialize timer from context settings
+  // Always update timer when roundTimerSec changes
   useEffect(() => {
-    if (!initializedRef.current && roundTimerSec > 0) {
+    if (roundTimerSec > 0) {
       setRemainingTime(roundTimerSec);
-      initializedRef.current = true;
     }
   }, [roundTimerSec, setRemainingTime]);
 
