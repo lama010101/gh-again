@@ -1,5 +1,5 @@
 
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { Button } from "@/components/ui/button";
 import { Clock, Users, Calendar, Info } from "lucide-react";
 import { useNavigate } from 'react-router-dom';
@@ -7,11 +7,23 @@ import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/components/ui/use-toast';
 import { supabase } from '@/integrations/supabase/client';
 import { fetchRandomImageIds } from '@/utils/resultsFetching';
+import { AuthModal } from '@/components/AuthModal';
 
 const HomeLayout1 = () => {
   const navigate = useNavigate();
   const { user, continueAsGuest } = useAuth();
   const { toast } = useToast();
+  const [showAuthModal, setShowAuthModal] = useState(false);
+  const [pendingMode, setPendingMode] = useState<'solo' | 'multi' | 'daily' | null>(null);
+
+  // For debugging - log current auth state and modal state
+  useEffect(() => {
+    console.log("[DEBUG] HomeLayout1 mounted or user changed. user:", user, "isAuthenticated:", !!user);
+  }, [user]);
+
+  useEffect(() => {
+    console.log(`[DEBUG] showAuthModal: ${showAuthModal}, pendingMode: ${pendingMode}`);
+  }, [showAuthModal, pendingMode]);
 
   const startGame = async (mode: 'solo' | 'multi' | 'daily') => {
     try {
@@ -20,11 +32,13 @@ const HomeLayout1 = () => {
       // Get current user or create a guest user - we'll work with the direct return value
       let currentUser = user;
       
+      // This should never happen now as we're checking before calling startGame
       if (!currentUser) {
-        console.log("No user found, creating guest user");
-        // Get the guest user directly from the function return
-        currentUser = await continueAsGuest();
-        console.log("Guest user created directly:", currentUser);
+        console.log("No user found, but this shouldn't happen as we check before starting game");
+        // Show auth modal instead of auto-creating guest
+        setPendingMode(mode);
+        setShowAuthModal(true);
+        return;
       }
       
       // Double check we have a user
@@ -143,7 +157,17 @@ const HomeLayout1 = () => {
             <p className="text-muted-foreground mb-6">Challenge yourself with historical images and test your knowledge of time and place.</p>
             <Button 
               className="w-full bg-history-primary hover:bg-history-primary/90 text-white"
-              onClick={() => startGame('solo')}
+              onClick={() => {
+                console.log('[DEBUG] Play Solo clicked. user:', user);
+                if (user) {
+                  console.log('[DEBUG] User authenticated. Starting game: solo');
+                  startGame('solo');
+                } else {
+                  console.log('[DEBUG] User not authenticated. Opening AuthModal for solo.');
+                  setPendingMode('solo');
+                  setShowAuthModal(true);
+                }
+              }}
             >
               Play Solo
             </Button>
@@ -157,7 +181,17 @@ const HomeLayout1 = () => {
             <p className="text-muted-foreground mb-6">Compete against friends or random opponents to see who knows history best.</p>
             <Button 
               className="w-full bg-history-primary hover:bg-history-primary/90 text-white"
-              onClick={() => startGame('multi')}
+              onClick={() => {
+                console.log('[DEBUG] Play Multiplayer clicked. user:', user);
+                if (user) {
+                  console.log('[DEBUG] User authenticated. Starting game: multi');
+                  startGame('multi');
+                } else {
+                  console.log('[DEBUG] User not authenticated. Opening AuthModal for multi.');
+                  setPendingMode('multi');
+                  setShowAuthModal(true);
+                }
+              }}
             >
               Play Multiplayer
             </Button>
@@ -171,7 +205,17 @@ const HomeLayout1 = () => {
             <p className="text-muted-foreground mb-6">A new challenge every day. Compare your score with players worldwide.</p>
             <Button 
               className="w-full bg-history-primary hover:bg-history-primary/90 text-white"
-              onClick={() => startGame('daily')}
+              onClick={() => {
+                console.log('[DEBUG] Play Daily clicked. user:', user);
+                if (user) {
+                  console.log('[DEBUG] User authenticated. Starting game: daily');
+                  startGame('daily');
+                } else {
+                  console.log('[DEBUG] User not authenticated. Opening AuthModal for daily.');
+                  setPendingMode('daily');
+                  setShowAuthModal(true);
+                }
+              }}
             >
               Play Daily
             </Button>
@@ -185,6 +229,30 @@ const HomeLayout1 = () => {
           </Button>
         </div>
       </div>
+      
+      {/* Auth Modal */}
+      <AuthModal 
+        isOpen={showAuthModal}
+        onClose={() => { setShowAuthModal(false); setPendingMode(null); }}
+        onAuthSuccess={() => {
+          console.log('[DEBUG] AuthModal: onAuthSuccess triggered');
+          setShowAuthModal(false);
+          if (pendingMode) {
+            console.log('[DEBUG] AuthModal: Starting game after auth:', pendingMode);
+            startGame(pendingMode);
+            setPendingMode(null);
+          }
+        }}
+        onGuestContinue={() => {
+          console.log('[DEBUG] AuthModal: onGuestContinue triggered');
+          setShowAuthModal(false);
+          if (pendingMode) {
+            console.log('[DEBUG] AuthModal: Starting game after guest continue:', pendingMode);
+            startGame(pendingMode);
+            setPendingMode(null);
+          }
+        }}
+      />
     </div>
   );
 };

@@ -4,6 +4,7 @@ import { HelpCircle, Target, Zap, Home, Settings, Maximize } from "lucide-react"
 import { Badge } from "@/components/ui/badge";
 import { useNavigate } from 'react-router-dom';
 import { formatInteger } from '@/utils/format';
+import TimerDisplay from '@/components/game/TimerDisplay';
 
 interface GameOverlayHUDProps {
   remainingTime?: string;
@@ -20,6 +21,9 @@ interface GameOverlayHUDProps {
   onFullscreen?: () => void;
   imageUrl?: string;
   className?: string;
+  isTimerActive?: boolean;
+  onTimeout?: () => void;
+  setRemainingTime?: (time: number) => void;
 }
 
 const GameOverlayHUD: React.FC<GameOverlayHUDProps> = ({
@@ -36,14 +40,15 @@ const GameOverlayHUD: React.FC<GameOverlayHUDProps> = ({
   onOpenSettingsModal,
   onFullscreen,
   imageUrl,
-  className
+  className,
+  isTimerActive = false,
+  onTimeout = () => {},
+  setRemainingTime = () => {}
 }) => {
   const hintsRemaining = hintsAllowed - hintsUsed;
   const isHintDisabled = hintsRemaining <= 0;
   
-  const isTimeRunningOut = rawRemainingTime <= 10;
-  const timerBadgeClass = isTimeRunningOut ? "bg-red-600 hover:bg-red-700" : "bg-primary";
-  const navigate = useNavigate(); // Keep for other potential uses if any
+  const navigate = useNavigate();
   
   const handleSettingsClick = () => {
     if (onOpenSettingsModal) {
@@ -60,8 +65,20 @@ const GameOverlayHUD: React.FC<GameOverlayHUDProps> = ({
     <div className={`absolute inset-0 z-40 flex flex-col justify-between p-4 pointer-events-none ${className || ''}`}>
       {/* Top bar - Score in center, Home button on right */}
       <div className="flex justify-between items-start w-full">
-        {/* Empty div to balance the layout */}
-        <div className="w-9"></div>
+        {/* Left side - Timer */}
+        <div className="pointer-events-auto">
+          {rawRemainingTime > 0 && (
+            <div className="bg-black/30 backdrop-blur-sm p-1.5 rounded-full">
+              <TimerDisplay
+                remainingTime={rawRemainingTime}
+                setRemainingTime={setRemainingTime}
+                isActive={isTimerActive}
+                onTimeout={onTimeout}
+                roundTimerSec={rawRemainingTime}
+              />
+            </div>
+          )}
+        </div>
         
         {/* Center - Score and accuracy */}
         <div className="flex bg-black/30 backdrop-blur-sm p-2 rounded-lg space-x-2 pointer-events-auto">

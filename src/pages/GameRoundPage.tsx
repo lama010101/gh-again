@@ -92,6 +92,9 @@ const GameRoundPage = () => {
 
   // Handle guess submission
   const handleSubmitGuess = useCallback(() => {
+    if (isSubmitting) return;
+    if (hasTimedOut) return; // Prevent submission after timeout
+    
     if (!imageForRound) {
       toast({
         title: "Error",
@@ -101,11 +104,11 @@ const GameRoundPage = () => {
       return;
     }
 
-    // Check if user has made a location guess
-    if (!hasGuessedLocation) {
+    // Don't require location selection if the timer ran out
+    if (!hasGuessedLocation && !hasTimedOut) {
       toast({
-        title: "Location Required",
-        description: "Please select a location on the map before submitting your guess.",
+        title: "No location selected",
+        description: "Please select a location on the map first.",
         variant: "destructive",
       });
       return;
@@ -162,20 +165,28 @@ const GameRoundPage = () => {
     }
   }, [currentGuess, imageForRound, toast, roundNumber, selectedYear, recordRoundResult, currentRoundIndex, navigate, roomId, hintsUsedThisRound]);
 
-  // Handle timer timeout
-  const handleTimeout = useCallback(() => {
-    if (isSubmitting) return;
+  // Handle timer completion
+  const handleTimeComplete = useCallback(() => {
+    console.log("Timer completed - auto submitting");
+    setHasTimedOut(true);
+    setIsTimerActive(false);
+    setIsSubmitting(true);
     
-    console.log("Timer expired. Checking for location guess...");
+    if (!imageForRound) {
+      toast({
+        title: "Error",
+        description: "Cannot submit guess, image data is missing.",
+        variant: "destructive",
+      });
+      setIsSubmitting(false);
+      return;
+    }
     
-    // If no location was guessed, record a 0 score
-    if (!hasGuessedLocation) {
-      console.log("No location guessed before timeout. Recording 0 score.");
-      setIsSubmitting(true);
-      setIsTimerActive(false);
-      setHasTimedOut(true);
-      
-      try {
+    try {
+      // When time runs out, submit with null coordinates (no location guess) if no location is selected
+      // or submit with the current guess if one exists
+      if (!hasGuessedLocation) {
+        // No location selected, submit as 'no guess' with 0 XP and 0% accuracy
         recordRoundResult(
           {
             guessCoordinates: null,
@@ -195,41 +206,65 @@ const GameRoundPage = () => {
           variant: "info",
           className: "bg-white/70 text-black border border-gray-200",
         });
-        
-        // Navigate to results after a short delay
-        setTimeout(() => {
-          navigate(`/test/game/room/${roomId}/round/${roundNumber}/results`);
-          setIsSubmitting(false);
-        }, 2000);
-        
-      } catch (error) {
-        console.error("Error recording timeout result:", error);
+        // Immediately navigate to results page
+        navigate(`/test/game/room/${roomId}/round/${roundNumber}/results`);
         setIsSubmitting(false);
+        return;
+      } else {
+        // User has selected a location, use that for submission
+        const distance = currentGuess 
+          ? calculateDistanceKm(
+              currentGuess.lat,
+              currentGuess.lng,
+              imageForRound.latitude,
+              imageForRound.longitude
+            ) 
+          : null;
+
+        // Calculate scores using the standardized system
+        const { timeXP, locationXP, roundXP, roundPercent } = distance !== null 
+          ? calculateRoundScore(distance, selectedYear, imageForRound.year) 
+          : { timeXP: 0, locationXP: 0, roundXP: 0, roundPercent: 0 };
+        
+        // Apply hint penalties to the score (10% per hint used)
+        const finalScore = calculateHintPenalty(roundXP, hintsUsedThisRound);
+
+        recordRoundResult(
+          {
+            guessCoordinates: currentGuess,
+            distanceKm: distance,
+            score: finalScore,
+            guessYear: selectedYear,
+            xpWhere: locationXP,
+            xpWhen: timeXP,
+            accuracy: roundPercent
+          },
+          currentRoundIndex
+        );
+        
+        toast({
+          title: "Time's Up!",
+          description: "Submitting your current guess automatically.",
+          variant: "info",
+          className: "bg-white/70 text-black border border-gray-200",
+        });
       }
       
-      return;
+      // Navigate to results after a short delay
+      setTimeout(() => {
+        navigate(`/test/game/room/${roomId}/round/${roundNumber}/results`);
+        setIsSubmitting(false);
+      }, 2000);
+      
+    } catch (error) {
+      console.error("Error recording timeout result:", error);
+      setIsSubmitting(false);
     }
-    
-    // If there is a location guess, proceed with normal submission
-    console.log("Submitting existing guess due to timeout");
-    toast({
-      title: "Time's Up!",
-      description: "Submitting your current guess automatically.",
-      variant: "info",
-      className: "bg-white/70 text-black border border-gray-200",
-    });
-    
-    // Disable the timer to prevent multiple submissions
-    setIsTimerActive(false);
-    setHasTimedOut(true);
-    
-    // Submit the existing guess
-    handleSubmitGuess();
-  }, [isSubmitting, hasGuessedLocation, selectedYear, currentRoundIndex, roundNumber, roomId, navigate, recordRoundResult, handleSubmitGuess, toast]);
+  }, [imageForRound, selectedYear, currentRoundIndex, recordRoundResult, toast, navigate, roomId, roundNumber, hasGuessedLocation, currentGuess, hintsUsedThisRound, calculateDistanceKm, calculateRoundScore, calculateHintPenalty]);
 
   // Reset timer and guess state when round changes
   useEffect(() => {
-    setRemainingTime(roundTimerSec > 0 ? roundTimerSec : 300);
+    setRemainingTime(roundTimerSec);
     setIsTimerActive(roundTimerSec > 0);
     setHasTimedOut(false);
     setHasGuessedLocation(false);
@@ -342,10 +377,10 @@ const GameRoundPage = () => {
               <div className="w-full max-w-md">
                 <Button
                   onClick={handleSubmitGuess}
-                  disabled={isSubmitting || (roundTimerSec > 0 && remainingTime <= 0) || !hasGuessedLocation}
+                  disabled={isSubmitting || hasTimedOut || (roundTimerSec > 0 && remainingTime <= 0) || !hasGuessedLocation}
                   size="lg"
                   className={`submit-guess w-full shadow-lg ${
-                    (roundTimerSec > 0 && remainingTime <= 0) || !hasGuessedLocation ? 'opacity-75 cursor-not-allowed' : ''
+                    hasTimedOut || (roundTimerSec > 0 && remainingTime <= 0) || !hasGuessedLocation ? 'opacity-75 cursor-not-allowed' : ''
                   }`}
                 >
                   {isSubmitting ? (
@@ -359,7 +394,7 @@ const GameRoundPage = () => {
                 </Button>
               </div>
             </TooltipTrigger>
-            {!hasGuessedLocation && (
+            {!hasGuessedLocation && !hasTimedOut && (
               <TooltipContent>
                 <div className="flex items-center">
                   <MapPin className="mr-2 h-4 w-4" />

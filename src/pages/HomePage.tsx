@@ -7,18 +7,18 @@ import { GameModeCard } from "@/components/GameModeCard";
 import { useGame } from "@/contexts/GameContext";
 import { useNavigate } from 'react-router-dom';
 
-// Rename component
 const HomePage = () => {
   const [isSettingsModalOpen, setIsSettingsModalOpen] = useState(false);
   const { user } = useAuth();
   const [userSettings, setUserSettings] = useState<UserSettings | null>(null);
   const [profile, setProfile] = useState<UserProfile | null>(null); // For profile specific settings if any, or just user id
   const [isLoadingUserSettings, setIsLoadingUserSettings] = useState(false);
+  const [showAuthModal, setShowAuthModal] = useState(false);
+  const [pendingMode, setPendingMode] = useState<string | null>(null);
   const navigate = useNavigate();
   const gameContext = useGame();
   const { startGame, isLoading } = gameContext || {};
 
-  // Fetch user settings when the component mounts or user changes
   useEffect(() => {
     const loadUserSettings = async () => {
       if (user) {
@@ -39,27 +39,44 @@ const HomePage = () => {
   }, [user]);
 
   const handleSettingsUpdated = () => {
-    // Re-fetch settings after update
     if (user) {
       fetchUserSettings(user.id).then(setUserSettings);
     }
   };
 
   const handleStartGame = async (mode: string) => {
-    console.log(`Starting game with mode: ${mode}`);
+    if (!user) {
+      setPendingMode(mode);
+      setShowAuthModal(true);
+      return;
+    }
     if (!gameContext) {
       console.error('Game context is not available');
       return;
     }
-    
     if (!isLoading) {
       try {
         await startGame?.();
-        // Navigate to game page after starting the game
         navigate('/game');
       } catch (error) {
         console.error('Error starting game:', error);
       }
+    }
+  };
+
+  const handleAuthSuccess = async () => {
+    setShowAuthModal(false);
+    if (pendingMode) {
+      await handleStartGame(pendingMode);
+      setPendingMode(null);
+    }
+  };
+
+  const handleGuestContinue = async () => {
+    setShowAuthModal(false);
+    if (pendingMode) {
+      await handleStartGame(pendingMode);
+      setPendingMode(null);
     }
   };
 

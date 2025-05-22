@@ -1,11 +1,19 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import FullscreenZoomableImage from './FullscreenZoomableImage';
 import GlobalSettingsModal from '@/components/settings/GlobalSettingsModal'; // Import the global settings modal
 import { useHint, type HintType } from '@/hooks/useHint';
 import HintModal from '@/components/HintModal';
 import GameOverlayHUD from '@/components/navigation/GameOverlayHUD';
 import YearSelector from '@/components/game/YearSelector';
 import LocationSelector from '@/components/game/LocationSelector';
-import TimerDisplay, { formatTime } from '@/components/game/TimerDisplay';
+import TimerDisplay from '@/components/game/TimerDisplay';
+
+// Helper function to format time as MM:SS
+const formatTime = (seconds: number): string => {
+  const mins = Math.floor(seconds / 60);
+  const secs = seconds % 60;
+  return `${mins}:${secs.toString().padStart(2, '0')}`;
+};
 import { GameImage, GuessCoordinates, useGame } from '@/contexts/GameContext';
 
 export interface GameLayout1Props {
@@ -174,8 +182,8 @@ const GameLayout1: React.FC<GameLayout1Props> = ({
         <div className={`hud-element ${isFullScreen ? 'hidden' : ''}`}>
           <GameOverlayHUD 
             selectedHintType={selectedHintType}
-            remainingTime={isTimerActive ? formatTime(remainingTime) : formatTime(0)}
-            rawRemainingTime={isTimerActive ? remainingTime : 0}
+            remainingTime={formatTime(remainingTime)}
+            rawRemainingTime={remainingTime}
             onHintClick={handleHintClick}
             hintsUsed={hintsUsed || 0}
             hintsAllowed={hintsAllowed}
@@ -186,37 +194,19 @@ const GameLayout1: React.FC<GameLayout1Props> = ({
             onOpenSettingsModal={() => setIsSettingsModalOpen(true)}
             imageUrl={image.url}
             onFullscreen={handleFullscreen}
+            isTimerActive={isTimerActive}
+            onTimeout={handleTimeout}
+            setRemainingTime={setRemainingTime}
           />
         </div>
       </div>
       
       {/* Full screen image overlay */}
       {isFullScreen && (
-        <div className="fixed inset-0 z-[9999] bg-black flex items-center justify-center">
-          <img
-            id="game-fullscreen-img"
-            src={image.url}
-            alt={image.title}
-            className="max-w-full max-h-full object-contain"
-            style={{ background: 'black' }}
-          />
-          
-          {/* Fullscreen exit button */}
-          <button 
-            onClick={() => {
-              if (document.exitFullscreen) {
-                document.exitFullscreen();
-              }
-              setIsFullScreen(false);
-            }}
-            className="fixed top-4 right-4 z-[10000] p-2 rounded-full bg-black/50 text-white hover:bg-black/70 transition-colors"
-            aria-label="Exit fullscreen"
-          >
-            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <path d="M8 3v3a2 2 0 0 1-2 2H3m18 0h-3a2 2 0 0 1-2-2V3m0 18v-3a2 2 0 0 1 2-2h3M3 16h3a2 2 0 0 1 2 2v3"/>
-            </svg>
-          </button>
-        </div>
+        <FullscreenZoomableImage image={image} onExit={() => {
+          if (document.exitFullscreen) document.exitFullscreen();
+          setIsFullScreen(false);
+        }} />
       )}
 
       <div className="flex-grow p-4 md:p-8">

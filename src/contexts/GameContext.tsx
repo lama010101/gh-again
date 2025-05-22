@@ -1,6 +1,7 @@
 import React, { createContext, useState, useContext, ReactNode, useCallback, useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useNavigate } from 'react-router-dom';
+import { useSettingsStore } from '@/lib/useSettingsStore';
 
 // Define the structure for a user's guess coordinates
 export interface GuessCoordinates {
@@ -88,7 +89,21 @@ export const GameProvider: React.FC<GameProviderProps> = ({ children }) => {
   const [isLoading, setIsLoading] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
   const [hintsAllowed, setHintsAllowed] = useState<number>(3); // Default 3 hints per game
-  const [roundTimerSec, setRoundTimerSec] = useState<number>(60); // Default 60 seconds per round
+  
+  // Get timer setting from settings store (defaults to 60 seconds)
+  const { timerSeconds, setTimerSeconds } = useSettingsStore();
+  const [roundTimerSec, setRoundTimerSec] = useState<number>(timerSeconds || 60);
+
+  // Keep roundTimerSec in sync with timerSeconds from settings store
+  useEffect(() => {
+    setRoundTimerSec(timerSeconds);
+  }, [timerSeconds]);
+
+  // Unified setter for both context and settings store
+  const handleSetRoundTimerSec = useCallback((seconds: number) => {
+    setRoundTimerSec(seconds);
+    setTimerSeconds(seconds);
+  }, [setTimerSeconds]);
   const [totalGameAccuracy, setTotalGameAccuracy] = useState<number>(0);
   const [totalGameXP, setTotalGameXP] = useState<number>(0);
   const [globalAccuracy, setGlobalAccuracy] = useState<number>(0);
@@ -463,7 +478,7 @@ export const GameProvider: React.FC<GameProviderProps> = ({ children }) => {
     globalAccuracy,
     globalXP,
     setHintsAllowed,
-    setRoundTimerSec,
+    setRoundTimerSec: handleSetRoundTimerSec,
     startGame,
     recordRoundResult,
     resetGame,
