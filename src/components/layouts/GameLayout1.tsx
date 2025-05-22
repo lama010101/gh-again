@@ -67,7 +67,7 @@ const GameLayout1: React.FC<GameLayout1Props> = ({
   }, []);
   const [isHintModalOpen, setIsHintModalOpen] = useState(false);
   const [isSettingsModalOpen, setIsSettingsModalOpen] = useState(false);
-  const { hintsAllowed, totalGameAccuracy, totalGameXP, roundTimerSec } = useGame();
+  const { totalGameAccuracy, totalGameXP, roundTimerSec } = useGame();
   
   // Handle timer timeout
   const handleTimeout = () => {
@@ -76,21 +76,6 @@ const GameLayout1: React.FC<GameLayout1Props> = ({
     }
   };
   
-  // Initialize hint-related variables with default values
-  const [hintState, setHintState] = useState<{
-    selectedHintType: HintType;
-    hintContent: string | null;
-    hintsUsed: number;
-    canSelectHint: boolean;
-    selectHint: (hintType: HintType) => void;
-  }>({
-    selectedHintType: null,
-    hintContent: null,
-    hintsUsed: 0,
-    canSelectHint: false,
-    selectHint: () => {}
-  });
-
   // Memoize the imageData object passed to useHint
   const memoizedImageData = useMemo(() => {
     if (!image) return undefined;
@@ -101,54 +86,23 @@ const GameLayout1: React.FC<GameLayout1Props> = ({
       title: image.title,
       description: image.description
     };
-  }, [image]); // Dependency: only recompute if the image prop itself changes
+  }, [image]);
 
-  // Destructure properties from useHint directly, passing memoizedImageData
+  // Use the new hint system
   const {
-    selectedHintType: hookSelectedHintType,
-    hintContent: hookHintContent,
-    hintsUsed: hookHintsUsed,
-    canSelectHint: hookCanSelectHint,
-    selectHint: hookSelectHint
-  } = useHint(memoizedImageData) || {}; // Pass memoizedImageData
-
-  // Update hint state when hook returns data
-  useEffect(() => {
-    // Ensure the hook has provided its functions/data before trying to set state
-    // We can check for hookSelectHint as it's a function that should be present if the hook is active
-    if (hookSelectHint !== undefined) {
-      setHintState(prevState => {
-        const newSelectedHintType = hookSelectedHintType ?? null;
-        const newHintContent = hookHintContent ?? null;
-
-        // Only update state if the values have actually changed
-        if (
-          prevState.selectedHintType !== newSelectedHintType ||
-          prevState.hintContent !== newHintContent ||
-          prevState.hintsUsed !== hookHintsUsed ||
-          prevState.canSelectHint !== hookCanSelectHint ||
-          prevState.selectHint !== hookSelectHint // Relies on hookSelectHint being a stable reference
-        ) {
-          return {
-            selectedHintType: newSelectedHintType,
-            hintContent: newHintContent,
-            hintsUsed: hookHintsUsed,
-            canSelectHint: hookCanSelectHint,
-            selectHint: hookSelectHint,
-          };
-        }
-        return prevState; // No change, return previous state to avoid re-render
-      });
-    }
-  }, [hookSelectedHintType, hookHintContent, hookHintsUsed, hookCanSelectHint, hookSelectHint]); // Depend on individual, stable values
-
-  // Destructure the state for easier use
-  const { selectedHintType, hintContent, hintsUsed, canSelectHint, selectHint } = hintState;
-
-
+    selectedHintType,
+    hintContent,
+    hintsUsedThisRound,
+    hintsUsedTotal,
+    canSelectHint,
+    selectHint,
+    resetHint,
+    HINTS_PER_ROUND,
+    HINTS_PER_GAME
+  } = useHint(memoizedImageData);
 
   const handleHintClick = () => {
-    if (hintState.canSelectHint) {
+    if (canSelectHint) {
       setIsHintModalOpen(true);
     } else {
       console.log("Cannot select hint now.");
@@ -185,8 +139,8 @@ const GameLayout1: React.FC<GameLayout1Props> = ({
             remainingTime={formatTime(remainingTime)}
             rawRemainingTime={remainingTime}
             onHintClick={handleHintClick}
-            hintsUsed={hintsUsed || 0}
-            hintsAllowed={hintsAllowed}
+            hintsUsed={hintsUsedTotal || 0}
+            hintsAllowed={HINTS_PER_GAME}
             currentAccuracy={totalGameAccuracy}
             currentScore={totalGameXP}
             onNavigateHome={onNavigateHome}
@@ -230,6 +184,10 @@ const GameLayout1: React.FC<GameLayout1Props> = ({
         onSelectHint={selectHint}
         selectedHintType={selectedHintType}
         hintContent={hintContent}
+        hintsUsedThisRound={hintsUsedThisRound}
+        hintsUsedTotal={hintsUsedTotal}
+        HINTS_PER_ROUND={HINTS_PER_ROUND}
+        HINTS_PER_GAME={HINTS_PER_GAME}
       />
 
       <GlobalSettingsModal

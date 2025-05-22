@@ -94,7 +94,12 @@ const HomePage = () => {
           </button>
         </div>
 
-      {/* Game modes section */}
+      {/* Game instructions, settings, etc. */}
+      <div className="bg-yellow-50 dark:bg-yellow-900/40 border border-yellow-200 dark:border-yellow-700 rounded-lg p-3 my-4 text-yellow-800 dark:text-yellow-100 text-sm shadow-sm">
+        <strong>Hint Rules:</strong><br />
+        You can use up to <b>2 hints per round</b> and <b>10 hints per game</b>.<br />
+        <span className="text-red-600 dark:text-red-300 font-semibold">Each hint costs 30 XP or 30% accuracy.</span>
+      </div>
       {gameContext ? (
         <div className="grid grid-cols-1 md:grid-cols-3 gap-8 max-w-6xl mx-auto">
           <GameModeCard

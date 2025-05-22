@@ -118,64 +118,38 @@ const TimerDisplay: React.FC<TimerDisplayProps> = ({
     return null;
   }
 
+  // Timer style based on screenshots
+  const isRed = remainingTime <= 10;
+  const bgColor = isRed ? 'rgba(239,68,68,0.8)' : 'rgba(0,0,0,0.6)';
+  const textClass = isRed ? 'animate-pulse' : '';
+
   return (
-    <div className="relative" aria-live="polite">
-      <svg 
-        className="transform -rotate-90 drop-shadow-md" 
-        width={size} 
-        height={size} 
-        viewBox={`0 0 ${size} ${size}`}
-        aria-hidden="true"
+    <div
+      className={`relative flex items-center justify-center select-none`}
+      aria-live="polite"
+      style={{ width: 56, height: 56 }}
+    >
+      <div
+        className={`absolute inset-0 rounded-full flex items-center justify-center ${textClass}`}
+        style={{
+          background: bgColor,
+          boxShadow: isRed ? '0 0 0 4px rgba(239,68,68,0.15)' : undefined,
+          transition: 'background 0.2s',
+        }}
       >
-        {/* Background glow effect for critical state */}
-        {isCritical && (
-          <circle
-            cx={size / 2}
-            cy={size / 2}
-            r={radius + 2}
-            fill="transparent"
-            stroke="rgba(239, 68, 68, 0.3)"
-            strokeWidth={strokeWidth + 2}
-            className="animate-ping"
-          />
-        )}
-        
-        {/* Track circle */}
-        <circle
-          cx={size / 2}
-          cy={size / 2}
-          r={radius}
-          fill="transparent"
-          stroke="rgba(255, 255, 255, 0.15)"
-          strokeWidth={strokeWidth}
-        />
-        
-        {/* Progress circle with dynamic color */}
-        <circle
-          cx={size / 2}
-          cy={size / 2}
-          r={radius}
-          fill="transparent"
-          stroke={color}
-          strokeWidth={strokeWidth}
-          strokeLinecap="round"
-          strokeDasharray={circumference}
+        <span
+          className="font-bold text-white text-xl md:text-2xl"
           style={{
-            strokeDashoffset,
-            transition: 'stroke-dashoffset 1s linear, stroke 0.3s ease-in-out'
+            textShadow: '0 0 2px #000, 0 0 2px #000, 0 1px 2px #000',
+            letterSpacing: '0.03em',
+            lineHeight: 1,
+            userSelect: 'none',
           }}
-        />
-      </svg>
-      
-      {/* Timer text */}
-      <div 
-        className={`absolute inset-0 flex items-center justify-center font-bold text-xs md:text-sm ${
-          isCritical ? 'text-red-400 animate-pulse' : 'text-white'
-        }`}
-        aria-atomic="true"
-      >
-        <span className="sr-only">Time remaining: </span>
-        {formatTime(remainingTime)}
+          aria-atomic="true"
+        >
+          <span className="sr-only">Time remaining: </span>
+          {formatTime(remainingTime)}
+        </span>
       </div>
     </div>
   );

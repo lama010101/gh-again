@@ -13,12 +13,28 @@ interface HintModalProps {
   onSelectHint: (type: HintType) => void;
 }
 
+interface HintModalProps {
+  isOpen: boolean;
+  onOpenChange: (open: boolean) => void;
+  selectedHintType: HintType;
+  hintContent: string | null;
+  onSelectHint: (type: HintType) => void;
+  hintsUsedThisRound: number;
+  hintsUsedTotal: number;
+  HINTS_PER_ROUND: number;
+  HINTS_PER_GAME: number;
+}
+
 const HintModal = ({ 
   isOpen, 
   onOpenChange, 
   selectedHintType, 
   hintContent, 
-  onSelectHint 
+  onSelectHint,
+  hintsUsedThisRound,
+  hintsUsedTotal,
+  HINTS_PER_ROUND,
+  HINTS_PER_GAME
 }: HintModalProps) => {
   return (
     <Popup isOpen={isOpen} onClose={() => onOpenChange(false)} ariaLabelledBy="hint-modal-title">
@@ -45,44 +61,46 @@ const HintModal = ({
           ) : (
             // Show hint options
             <div className="grid gap-4">
-              <button 
-                onClick={() => onSelectHint('where')}
-                className="hint-button p-4 rounded-xl glass flex items-center hover:bg-white/10 transition-colors"
-              >
-                <div className="bg-gradient-to-br from-indigo-500 to-purple-600 h-12 w-12 rounded-full flex items-center justify-center">
-                  <MapPin className="h-6 w-6 text-white" />
+              {/* Hint cost warning */}
+              <div className="mb-2 text-yellow-300 text-sm flex items-center justify-center gap-2">
+                <span role="img" aria-label="Warning">⚠️</span>
+                Each hint costs 30 XP or 30% accuracy. Best used if you're less than 50% sure.
+              </div>
+              {/* Remaining hints info */}
+              <div className="mb-4 text-xs text-gray-300">Hints remaining: {HINTS_PER_GAME - hintsUsedTotal} / {HINTS_PER_GAME}</div>
+              {/* Show hint buttons only if not all used this round */}
+              {hintsUsedThisRound >= HINTS_PER_ROUND ? (
+                <div className="text-red-400 font-semibold py-8">You’ve used all hints for this round.</div>
+              ) : (
+                <div className="grid gap-4">
+                  <button 
+                    onClick={() => onSelectHint('where')}
+                    className="hint-button p-4 rounded-xl glass flex items-center hover:bg-white/10 transition-colors"
+                    disabled={hintsUsedThisRound >= HINTS_PER_ROUND || (HINTS_PER_GAME - hintsUsedTotal) <= 0}
+                  >
+                    <div className="bg-gradient-to-br from-indigo-500 to-purple-600 h-12 w-12 rounded-full flex items-center justify-center">
+                      <MapPin className="h-6 w-6 text-white" />
+                    </div>
+                    <div className="ml-4 text-left">
+                      <h3 className="text-lg font-medium">Where</h3>
+                      <p className="text-sm text-gray-300">Reveals the region</p>
+                    </div>
+                  </button>
+                  <button 
+                    onClick={() => onSelectHint('when')}
+                    className="hint-button p-4 rounded-xl glass flex items-center hover:bg-white/10 transition-colors"
+                    disabled={hintsUsedThisRound >= HINTS_PER_ROUND || (HINTS_PER_GAME - hintsUsedTotal) <= 0}
+                  >
+                    <div className="bg-gradient-to-br from-pink-500 to-red-600 h-12 w-12 rounded-full flex items-center justify-center">
+                      <Clock className="h-6 w-6 text-white" />
+                    </div>
+                    <div className="ml-4 text-left">
+                      <h3 className="text-lg font-medium">When</h3>
+                      <p className="text-sm text-gray-300">Reveals the decade</p>
+                    </div>
+                  </button>
                 </div>
-                <div className="ml-4 text-left">
-                  <h3 className="text-lg font-medium">Where</h3>
-                  <p className="text-sm text-gray-300">Reveals the region</p>
-                </div>
-              </button>
-              
-              <button 
-                onClick={() => onSelectHint('when')}
-                className="hint-button p-4 rounded-xl glass flex items-center hover:bg-white/10 transition-colors"
-              >
-                <div className="bg-gradient-to-br from-pink-500 to-red-600 h-12 w-12 rounded-full flex items-center justify-center">
-                  <Clock className="h-6 w-6 text-white" />
-                </div>
-                <div className="ml-4 text-left">
-                  <h3 className="text-lg font-medium">When</h3>
-                  <p className="text-sm text-gray-300">Reveals the decade</p>
-                </div>
-              </button>
-              
-              <button 
-                onClick={() => onSelectHint('what')}
-                className="hint-button p-4 rounded-xl glass flex items-center hover:bg-white/10 transition-colors"
-              >
-                <div className="bg-gradient-to-br from-yellow-500 to-orange-600 h-12 w-12 rounded-full flex items-center justify-center">
-                  <HelpCircle className="h-6 w-6 text-white" />
-                </div>
-                <div className="ml-4 text-left">
-                  <h3 className="text-lg font-medium">What</h3>
-                  <p className="text-sm text-gray-300">Reveals event description</p>
-                </div>
-              </button>
+              )}
             </div>
           )}
         </div>

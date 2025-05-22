@@ -1,7 +1,7 @@
 
 import { useState, useEffect, useCallback } from 'react'; // Added useCallback
 
-export type HintType = 'where' | 'when' | 'what' | null;
+export type HintType = 'where' | 'when' | null;
 
 interface HintState {
   selectedHintType: HintType;
@@ -48,11 +48,14 @@ const getDescriptionHint = (data: typeof mockImageData): string => {
   return description;
 };
 
+// HINT SYSTEM CONSTANTS
+export const HINTS_PER_ROUND = 2;
+export const HINTS_PER_GAME = 10;
+export const HINT_PENALTY = 30; // 30 XP or 30% accuracy
+
 export const useHint = (imageData = mockImageData) => {
-  const [hintsAllowed] = useState(1); // Max hints per round
-  const [hintsUsed, setHintsUsed] = useState(0);
-  
-  // Initialize with values from localStorage if they exist
+  const [hintsUsedThisRound, setHintsUsedThisRound] = useState(0);
+  const [hintsUsedTotal, setHintsUsedTotal] = useState(0);
   const [hintState, setHintState] = useState<HintState>(() => {
     const savedHint = localStorage.getItem('currentHint');
     return savedHint ? JSON.parse(savedHint) : {
@@ -62,27 +65,18 @@ export const useHint = (imageData = mockImageData) => {
     };
   });
 
-  // Save to localStorage whenever the hint state changes
   useEffect(() => {
     if (hintState.selectedHintType) {
       localStorage.setItem('currentHint', JSON.stringify(hintState));
     }
   }, [hintState]);
 
-  const canSelectHint = hintsUsed < hintsAllowed && !hintState.selectedHintType;
-  
-  // Function to check if a specific hint type can be selected
-  // This doesn't need useCallback as it's not returned directly,
-  // but its result 'canSelectHint' is used in selectHint's useCallback.
-  const canSelectHintType = (hintType: HintType): boolean => {
-    return canSelectHint && hintType !== null;
-  };
+  const canSelectHint = hintsUsedThisRound < HINTS_PER_ROUND && hintsUsedTotal < HINTS_PER_GAME && !hintState.selectedHintType;
+  const canSelectHintType = (hintType: HintType): boolean => canSelectHint && hintType !== null;
 
   const selectHint = useCallback((hintType: HintType) => {
-    if (!canSelectHint) return; 
-
+    if (!canSelectHint) return;
     let content: string | null = null;
-    
     switch (hintType) {
       case 'where':
         content = getRegionHint(imageData);
@@ -90,22 +84,19 @@ export const useHint = (imageData = mockImageData) => {
       case 'when':
         content = getDecadeHint(imageData);
         break;
-      case 'what':
-        content = getDescriptionHint(imageData);
-        break;
       default:
         content = null;
     }
-
     setHintState({
       selectedHintType: hintType,
       hintContent: content,
       canSelectHintType: false
     });
-    
-    setHintsUsed(prevHintsUsed => prevHintsUsed + 1); // Use functional update
-  }, [canSelectHint, imageData, setHintState, setHintsUsed]); // Added dependencies
+    setHintsUsedThisRound(h => h + 1);
+    setHintsUsedTotal(t => t + 1);
+  }, [canSelectHint, imageData]);
 
+  // Function to reset hint for next round
   const resetHint = useCallback(() => {
     localStorage.removeItem('currentHint');
     setHintState({
@@ -113,17 +104,30 @@ export const useHint = (imageData = mockImageData) => {
       hintContent: null,
       canSelectHintType: true
     });
-    setHintsUsed(0);
-  }, [setHintState, setHintsUsed]); // Added dependencies
+    setHintsUsedThisRound(0);
+  }, []);
+
+  const resetHintsForRound = useCallback(() => {
+    setHintsUsedThisRound(0);
+  }, []);
+
+  const incrementHints = useCallback(() => {
+    setHintsUsedTotal(t => t + 1);
+  }, []);
 
   return {
     selectedHintType: hintState.selectedHintType,
     hintContent: hintState.hintContent,
-    canSelectHintType: canSelectHint && hintState.canSelectHintType, // Clarified returned boolean
-    hintsAllowed,
-    hintsUsed,
-    canSelectHint, // This is the computed boolean
-    selectHint,  // Memoized function
-    resetHint    // Memoized function
+    canSelectHintType: canSelectHint && hintState.canSelectHintType,
+    hintsUsedThisRound,
+    hintsUsedTotal,
+    canSelectHint,
+    selectHint,
+    resetHint,
+    resetHintsForRound,
+    incrementHints,
+    HINTS_PER_ROUND,
+    HINTS_PER_GAME,
+    HINT_PENALTY
   };
 };

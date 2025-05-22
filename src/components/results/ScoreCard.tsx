@@ -13,14 +13,17 @@ interface ScoreCardProps {
 const ScoreCard: React.FC<ScoreCardProps> = ({ 
   locationAccuracy, 
   timeAccuracy, 
-  xpTotal 
+  xpTotal,
+  hintsUsed
 }) => {
   // Calculate overall accuracy as the average of location and time accuracy
   // Round all values to integers
   const roundedLocationAccuracy = formatInteger(locationAccuracy);
   const roundedTimeAccuracy = formatInteger(timeAccuracy);
-  const roundedXpTotal = formatInteger(xpTotal);
-  const overallAccuracy = formatInteger((formatInteger(locationAccuracy) + formatInteger(timeAccuracy)) / 2);
+  const hintXpPenalty = hintsUsed * 30;
+  const hintAccuracyPenalty = hintsUsed * 30;
+  const roundedXpTotal = formatInteger(xpTotal - hintXpPenalty);
+  const overallAccuracy = formatInteger(((formatInteger(locationAccuracy) - hintAccuracyPenalty) + (formatInteger(timeAccuracy) - hintAccuracyPenalty)) / 2);
   const isPerfectScore = roundedLocationAccuracy >= 95 && roundedTimeAccuracy >= 95;
   
   return (
