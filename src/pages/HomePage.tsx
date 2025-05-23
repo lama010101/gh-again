@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Clock, Award, User, Settings as SettingsIcon } from "lucide-react";
 import GlobalSettingsModal from '@/components/GlobalSettingsModal';
+import FriendsGameModal from '@/components/FriendsGameModal';
 import { useAuth } from '@/contexts/AuthContext';
 import { UserSettings, fetchUserSettings, UserProfile, fetchUserProfile } from '@/utils/profile/profileService';
 import { GameModeCard } from "@/components/GameModeCard";
@@ -15,6 +16,7 @@ const HomePage = () => {
   const [isLoadingUserSettings, setIsLoadingUserSettings] = useState(false);
   const [showAuthModal, setShowAuthModal] = useState(false);
   const [pendingMode, setPendingMode] = useState<string | null>(null);
+  const [isFriendsModalOpen, setIsFriendsModalOpen] = useState(false);
   const navigate = useNavigate();
   const gameContext = useGame();
   const { startGame, isLoading } = gameContext || {};
@@ -45,15 +47,45 @@ const HomePage = () => {
   };
 
   const handleStartGame = async (mode: string) => {
+    if (mode === 'time-attack') {
+      setIsFriendsModalOpen(true);
+      return;
+    }
+    
     if (!user) {
       setPendingMode(mode);
       setShowAuthModal(true);
       return;
     }
+    
     if (!gameContext) {
       console.error('Game context is not available');
       return;
     }
+    
+    if (!isLoading) {
+      try {
+        await startGame?.();
+        navigate('/game');
+      } catch (error) {
+        console.error('Error starting game:', error);
+      }
+    }
+  };
+  
+  const handleStartFriendsGame = async () => {
+    setIsFriendsModalOpen(false);
+    if (!user) {
+      setPendingMode('time-attack');
+      setShowAuthModal(true);
+      return;
+    }
+    
+    if (!gameContext) {
+      console.error('Game context is not available');
+      return;
+    }
+    
     if (!isLoading) {
       try {
         await startGame?.();
@@ -99,7 +131,7 @@ const HomePage = () => {
       {gameContext ? (
         <div className="grid grid-cols-1 md:grid-cols-3 gap-8 max-w-6xl mx-auto">
           <GameModeCard
-            title="Classic"
+            title="Solo"
             description="Test your historical knowledge at your own pace. Perfect for learning and exploring."
             mode="classic"
             icon={User}
@@ -107,7 +139,7 @@ const HomePage = () => {
             isLoading={isLoading}
           />
           <GameModeCard
-            title="Time Attack"
+            title="Friends"
             description="Race against the clock! Make quick decisions about historical events."
             mode="time-attack"
             icon={Clock}
@@ -145,6 +177,13 @@ const HomePage = () => {
       <GlobalSettingsModal 
         isOpen={isSettingsModalOpen} 
         onClose={() => setIsSettingsModalOpen(false)} 
+      />
+      
+      <FriendsGameModal
+        isOpen={isFriendsModalOpen}
+        onClose={() => setIsFriendsModalOpen(false)}
+        onStartGame={handleStartFriendsGame}
+        isLoading={isLoading}
       />
 </div>
     </div>
