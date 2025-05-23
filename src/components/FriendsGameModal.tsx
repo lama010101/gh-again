@@ -4,7 +4,7 @@ import { Dialog, DialogContent } from '@/components/ui/dialog';
 interface FriendsGameModalProps {
   isOpen: boolean;
   onClose: () => void;
-  onStartGame: () => void;
+  onStartGame: (settings: { timerSeconds: number; hintsPerGame: number }) => void;
   isLoading?: boolean;
 }
 
@@ -93,14 +93,14 @@ const FriendsGameModal: React.FC<FriendsGameModalProps> = ({
 
 
   const handleStart = () => {
-    // Save settings before starting the game
-    localStorage.setItem('friendsGameSettings', JSON.stringify({
+    const settings = {
       hintsPerGame,
       timerEnabled,
       timerSeconds,
       gameId,
-    }));
-    onStartGame();
+    };
+    localStorage.setItem('friendsGameSettings', JSON.stringify(settings));
+    onStartGame({ timerSeconds, hintsPerGame });
   };
 
   if (!isOpen) return null;

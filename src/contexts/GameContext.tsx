@@ -99,6 +99,14 @@ export const GameProvider: React.FC<GameProviderProps> = ({ children }) => {
     setRoundTimerSec(timerSeconds);
   }, [timerSeconds]);
 
+  // Accept settings from startGame
+  const applyGameSettings = (settings?: { timerSeconds?: number; hintsPerGame?: number }) => {
+    if (settings) {
+      if (typeof settings.timerSeconds === 'number') setRoundTimerSec(settings.timerSeconds);
+      if (typeof settings.hintsPerGame === 'number') setHintsAllowed(settings.hintsPerGame);
+    }
+  };
+
   // Unified setter for both context and settings store
   const handleSetRoundTimerSec = useCallback((seconds: number) => {
     setRoundTimerSec(seconds);
@@ -314,13 +322,15 @@ export const GameProvider: React.FC<GameProviderProps> = ({ children }) => {
   }, []);
 
   // Function to fetch images and start a new game
-  const startGame = useCallback(async () => {
+  const startGame = useCallback(async (settings?: { timerSeconds?: number; hintsPerGame?: number }) => {
     console.log("Starting new game...");
     clearSavedGameState(); // Clear any existing saved state
     setIsLoading(true);
     setError(null);
     setImages([]); // Clear previous images
     setRoundResults([]); // Clear previous results
+    
+    applyGameSettings(settings);
     
     try {
       // Generate a simple unique room ID for this session

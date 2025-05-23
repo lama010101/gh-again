@@ -73,7 +73,7 @@ const HomePage = () => {
     }
   };
   
-  const handleStartFriendsGame = async () => {
+  const handleStartFriendsGame = (settings: { timerSeconds: number; hintsPerGame: number }) => {
     setIsFriendsModalOpen(false);
     if (!user) {
       setPendingMode('time-attack');
@@ -87,14 +87,11 @@ const HomePage = () => {
     }
     
     if (!isLoading) {
-      try {
-        await startGame?.();
-        navigate('/game');
-      } catch (error) {
-        console.error('Error starting game:', error);
-      }
+      startGame?.(settings);
+      navigate('/game');
     }
   };
+
 
   const handleAuthSuccess = async () => {
     setShowAuthModal(false);

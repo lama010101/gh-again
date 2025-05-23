@@ -53,11 +53,15 @@ const GameHeader: React.FC<GameHeaderProps> = ({
           </Badge>
         </Button>
         {remainingTime && (
-          <Button size="sm" variant="outline" className="bg-white/70 hover:bg-white">
-            <Clock className="h-5 w-5" />
+          <Button 
+            size="sm" 
+            variant="outline" 
+            className="bg-white/70 hover:bg-white h-6 px-2"
+          >
+            <Clock className="h-3 w-3" />
             <Badge 
               variant="default" 
-              className={`ml-1 ${timerBadgeClass}`}
+              className={`ml-1 text-xs h-4 ${timerBadgeClass}`}
             >
               {remainingTime}
             </Badge>
