@@ -53,12 +53,52 @@ const FriendsGameModal: React.FC<FriendsGameModalProps> = ({
     onClose();
   };
 
+  const [gameId] = useState(() => `game_${Math.random().toString(36).substr(2, 9)}`);
+  const [isCopied, setIsCopied] = useState(false);
+  const gameUrl = `${window.location.origin}/play/${gameId}`;
+
+  const handleCopyUrl = () => {
+    let copied = false;
+    // Try execCommand('copy') with a temporary textarea (most reliable for user-initiated events)
+    try {
+      const textArea = document.createElement('textarea');
+      textArea.value = gameUrl;
+      textArea.setAttribute('readonly', '');
+      textArea.style.position = 'absolute';
+      textArea.style.left = '-9999px';
+      document.body.appendChild(textArea);
+      textArea.select();
+      copied = document.execCommand('copy');
+      document.body.removeChild(textArea);
+    } catch (err) {
+      copied = false;
+    }
+
+    // As a backup, try Clipboard API if available
+    if (!copied && navigator.clipboard && window.isSecureContext) {
+      navigator.clipboard.writeText(gameUrl).then(() => {
+        setIsCopied(true);
+        setTimeout(() => setIsCopied(false), 2000);
+      }, () => {
+        setIsCopied(false);
+      });
+      return;
+    }
+
+    setIsCopied(copied);
+    if (copied) {
+      setTimeout(() => setIsCopied(false), 2000);
+    }
+  };
+
+
   const handleStart = () => {
     // Save settings before starting the game
     localStorage.setItem('friendsGameSettings', JSON.stringify({
       hintsPerGame,
       timerEnabled,
       timerSeconds,
+      gameId,
     }));
     onStartGame();
   };
@@ -146,8 +186,41 @@ const FriendsGameModal: React.FC<FriendsGameModalProps> = ({
               </div>
             </div>
 
+            {/* Game URL Section */}
+            <div className="mt-6 pt-4 border-t border-gray-200 dark:border-gray-700">
+              <div className="flex items-center justify-between mb-2">
+                <span className="text-sm font-medium text-gray-700 dark:text-gray-300">Invite Friends</span>
+              </div>
+              <div className="flex rounded-md shadow-sm">
+                <div className="relative flex-1 min-w-0">
+                  <input
+                    type="text"
+                    readOnly
+                    value={gameUrl}
+                    className="block w-full rounded-none rounded-l-md border-gray-300 dark:bg-gray-700 dark:border-gray-600 text-sm py-2 px-3 focus:outline-none focus:ring-1 focus:ring-orange-500 focus:border-orange-500"
+                    onClick={(e) => (e.target as HTMLInputElement).select()}
+                  />
+                </div>
+                <button
+                  type="button"
+                  onClick={handleCopyUrl}
+                  className={`inline-flex items-center px-3 py-2 border border-l-0 text-sm font-medium rounded-r-md ${
+                    isCopied 
+                      ? 'bg-green-500 text-white border-green-500' 
+                      : 'bg-gray-50 text-gray-700 border-gray-300 hover:bg-gray-100 dark:bg-gray-600 dark:text-gray-200 dark:border-gray-500 dark:hover:bg-gray-700'
+                  }`}
+                  disabled={isLoading}
+                >
+                  {isCopied ? 'Copied!' : 'Copy'}
+                </button>
+              </div>
+              <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                Share this link with friends to play together
+              </p>
+            </div>
+
             {/* Footer Buttons */}
-            <div className="flex justify-end gap-2 pt-2">
+            <div className="flex justify-end gap-2 pt-4">
               <button
                 type="button"
                 className="px-4 py-2 rounded-md border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-200 bg-white dark:bg-gray-700 hover:bg-gray-50 dark:hover:bg-gray-600 text-sm"
