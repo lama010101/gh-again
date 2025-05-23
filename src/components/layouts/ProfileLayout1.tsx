@@ -24,7 +24,7 @@ import {
   UserProfile,
   UserStats,
   UserSettings,
-  UserMetrics
+  UserMetricsTable as UserMetrics
 } from '@/utils/profile/profileService';
 
 // Import tab components
@@ -314,9 +314,6 @@ const ProfileLayout1 = () => {
   
   return (
     <div className="min-h-screen bg-history-light dark:bg-history-dark flex flex-col">
-      {/* Add MainNavbar at the top */}
-      <MainNavbar onMenuClick={() => console.log('Menu clicked')} />
-      
       <div className="max-w-4xl mx-auto p-4 pt-8 flex-grow">
         {/* Removed back button and title for cleaner interface */}
         

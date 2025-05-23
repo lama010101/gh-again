@@ -34,7 +34,14 @@ const FinalResultsPage = () => {
   // Update user metrics and fetch global scores when the final results page is loaded
   useEffect(() => {
     const updateMetricsAndFetchGlobal = async () => {
-      if (roundResults.length === 0 || !images.length) return;
+      if (roundResults.length === 0 || !images.length) {
+        console.log('No round results or images to process');
+        return;
+      }
+
+      console.log('Processing game results to update user metrics...');
+      console.log('Round results:', roundResults);
+      console.log('Images:', images);
 
       // Calculate final score and percentage
       const roundScores = roundResults.map((result, index) => {
@@ -51,6 +58,7 @@ const FinalResultsPage = () => {
       });
       
       const { finalXP, finalPercent } = calculateFinalScore(roundScores);
+      console.log('Final game score:', { finalXP, finalPercent });
       
       // Check if this was a perfect game
       const isPerfectGame = finalPercent === 100;
@@ -76,8 +84,9 @@ const FinalResultsPage = () => {
       const { data: { user } } = await supabase.auth.getUser();
       
       if (user) {
-        // Update user metrics in Supabase
-        await updateUserMetrics(user.id, {
+        console.log('Updating metrics for user:', user.id);
+        // Prepare metrics update
+        const metricsUpdate = {
           gameAccuracy: finalPercent,
           gameXP: finalXP,
           isPerfectGame,
@@ -85,11 +94,23 @@ const FinalResultsPage = () => {
           timeAccuracy: avgTimeAccuracy,
           yearBullseye,
           locationBullseye
-        });
+        };
         
-        // Fetch updated global metrics after updating
-        fetchGlobalMetrics();
-        console.log('Updated user metrics and fetched global metrics after game completion');
+        console.log('Metrics to update:', metricsUpdate);
+        
+        // Update user metrics in Supabase
+        const updateSuccess = await updateUserMetrics(user.id, metricsUpdate);
+        
+        if (updateSuccess) {
+          console.log('Successfully updated user metrics');
+          // Fetch updated global metrics after updating
+          await fetchGlobalMetrics();
+          console.log('Refreshed global metrics after update');
+        } else {
+          console.error('Failed to update user metrics');
+        }
+      } else {
+        console.log('No authenticated user found, skipping metrics update');
       }
     };
     

@@ -404,16 +404,30 @@ export async function updateUserMetrics(
     }
 
     // Upsert the metrics to Supabase
+    console.log(`Updating metrics for user ${userId}:`, metrics);
+    
     const { error: upsertError } = await supabase
       .from('user_metrics')
-      .upsert(metrics);
+      .upsert(metrics, { onConflict: 'user_id' });
 
     if (upsertError) {
       console.error('Error updating user metrics:', upsertError);
       return false;
     }
 
-    console.log(`Updated metrics for user ${userId}:`, metrics);
+    // Verify the update by fetching the latest metrics
+    const { data: verifyData, error: verifyError } = await supabase
+      .from('user_metrics')
+      .select('*')
+      .eq('user_id', userId)
+      .single();
+      
+    if (verifyError) {
+      console.error('Error verifying metrics update:', verifyError);
+    } else {
+      console.log(`Successfully updated metrics for user ${userId}:`, verifyData);
+    }
+    
     return true;
   } catch (error) {
     console.error('Error in updateUserMetrics:', error);

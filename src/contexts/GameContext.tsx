@@ -168,6 +168,7 @@ export const GameProvider: React.FC<GameProviderProps> = ({ children }) => {
   // Function to fetch global metrics from Supabase or localStorage
   const fetchGlobalMetrics = useCallback(async () => {
     try {
+      console.log('Fetching global metrics...');
       // First check for guest session in localStorage
       const guestSession = localStorage.getItem('guestSession');
       if (guestSession) {
@@ -197,13 +198,15 @@ export const GameProvider: React.FC<GameProviderProps> = ({ children }) => {
       const { data: { user } } = await supabase.auth.getUser();
       
       if (!user) {
-        // This is expected for guest users or when not logged in
+        console.log('No user found, setting global metrics to 0');
+        // For guest users, use localStorage or set to 0
         // Initialize with zeros instead of warning
         setGlobalAccuracy(0);
         setGlobalXP(0);
         return;
       }
       
+      console.log('Fetching metrics for user:', user.id);
       // For authenticated users, fetch from Supabase
       const { data: metrics, error: fetchError } = await supabase
         .from('user_metrics')
@@ -214,6 +217,7 @@ export const GameProvider: React.FC<GameProviderProps> = ({ children }) => {
       if (fetchError) {
         // Handle case where user exists but has no metrics yet
         if (fetchError.code === 'PGRST116') { // Not found error
+          console.log('No metrics found for user, setting to 0');
           setGlobalAccuracy(0);
           setGlobalXP(0);
         } else {
@@ -223,8 +227,13 @@ export const GameProvider: React.FC<GameProviderProps> = ({ children }) => {
       }
       
       if (metrics) {
+        console.log('Found metrics:', metrics);
         setGlobalAccuracy(metrics.overall_accuracy || 0);
         setGlobalXP(metrics.xp_total || 0);
+      } else {
+        console.log('No metrics data returned');
+        setGlobalAccuracy(0);
+        setGlobalXP(0);
       }
     } catch (err) {
       console.error('Error in fetchGlobalMetrics:', err);

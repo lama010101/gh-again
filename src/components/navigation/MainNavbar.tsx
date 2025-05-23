@@ -15,9 +15,18 @@ const MainNavbar: React.FC<MainNavbarProps> = ({ onMenuClick }) => {
   const navigate = useNavigate();
   const { globalXP, fetchGlobalMetrics } = useGame();
   
-  // Fetch global metrics when component mounts
+  // Fetch global metrics when component mounts and periodically refresh
   useEffect(() => {
+    console.log('MainNavbar: Fetching global metrics on mount');
     fetchGlobalMetrics();
+    
+    // Set up a periodic refresh every 30 seconds
+    const refreshInterval = setInterval(() => {
+      console.log('MainNavbar: Refreshing global metrics');
+      fetchGlobalMetrics();
+    }, 30000);
+    
+    return () => clearInterval(refreshInterval);
   }, [fetchGlobalMetrics]);
 
   return (

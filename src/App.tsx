@@ -23,6 +23,7 @@ import FriendsPage from "./pages/FriendsPage";
 import AuthPage from "./pages/AuthPage";
 import AdminImagesPage from "./pages/AdminImagesPage";
 import AdminBadgesPage from "./pages/AdminBadgesPage";
+import AdminUsersPage from "./pages/AdminUsersPage";
 import RoundResultsPage from "./pages/RoundResultsPage";
 
 // Enhanced AuthRedirectHandler with better session handling
@@ -116,6 +117,7 @@ const App = () => {
                         <Route path="friends" element={<FriendsPage />} />
                         <Route path="admin/images" element={<AdminImagesPage />} />
                         <Route path="admin/badges" element={<AdminBadgesPage />} />
+                        <Route path="admin/users" element={<AdminUsersPage />} /> // Use AdminUsersPage
                         <Route path="game/room/:roomId/round/:roundNumber" element={<GameRoundPage />} />
                         <Route path="game/room/:roomId/round/:roundNumber/results" element={<RoundResultsPage />} />
                       </Route>
