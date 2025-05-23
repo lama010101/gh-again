@@ -1,5 +1,5 @@
 
-import React from 'react';
+import React, { useState } from 'react';
 import Popup from '@/components/ui/Popup';
 import { Button } from "@/components/ui/button";
 import { MapPin, Clock, HelpCircle } from "lucide-react";
@@ -36,6 +36,18 @@ const HintModal = ({
   HINTS_PER_ROUND,
   HINTS_PER_GAME
 }: HintModalProps) => {
+  const [loadingHint, setLoadingHint] = useState<HintType | null>(null);
+
+  const handleHintSelection = (hintType: HintType) => {
+    setLoadingHint(hintType);
+    try {
+      onSelectHint(hintType);
+    } catch (error) {
+      console.error('Error selecting hint:', error);
+    } finally {
+      setLoadingHint(null);
+    }
+  };
   return (
     <Popup isOpen={isOpen} onClose={() => onOpenChange(false)} ariaLabelledBy="hint-modal-title">
       {/* Content that was previously in DialogContent now goes here, styled by Popup.module.css */}
@@ -56,47 +68,117 @@ const HintModal = ({
                 {selectedHintType === 'what' && <HelpCircle className="mx-auto h-8 w-8 text-history-secondary mb-2" />}
                 <h3 className="text-lg font-medium capitalize">{selectedHintType}</h3>
               </div>
-              <p className="text-xl font-medium">{hintContent}</p>
+              <p className="text-xl font-medium">
+                {hintContent || 'No hint content available'}
+              </p>
             </div>
           ) : (
             // Show hint options
             <div className="grid gap-4">
-              {/* Hint cost warning */}
-              <div className="mb-2 text-yellow-300 text-sm flex items-center justify-center gap-2">
-                <span role="img" aria-label="Warning">⚠️</span>
-                Each hint costs 30 XP or 30% accuracy. Best used if you're less than 50% sure.
+              <div className="mb-4 p-3 bg-yellow-500/10 border border-yellow-500/30 rounded-lg">
+                <div className="flex items-start gap-2">
+                  <span className="text-yellow-400 text-sm mt-0.5">💡</span>
+                  <div>
+                    <p className="text-yellow-300 text-sm font-medium">Hint Cost</p>
+                    <p className="text-yellow-200 text-xs mt-1">
+                      Each hint costs 30 XP or 30% accuracy. Best used if you're less than 50% sure.
+                    </p>
+                  </div>
+                </div>
               </div>
+              
               {/* Remaining hints info */}
-              <div className="mb-4 text-xs text-gray-300">Hints remaining: {HINTS_PER_GAME - hintsUsedTotal} / {HINTS_PER_GAME}</div>
+              <div className="mb-4 grid grid-cols-2 gap-3 text-center">
+                <div className="bg-white/5 p-2 rounded-lg">
+                  <div className="text-xs text-gray-300 mb-1">This Round</div>
+                  <div className="text-xl font-bold text-white">
+                    {HINTS_PER_ROUND - hintsUsedThisRound}
+                    <span className="text-xs font-normal text-gray-400"> / {HINTS_PER_ROUND}</span>
+                  </div>
+                </div>
+                <div className="bg-white/5 p-2 rounded-lg">
+                  <div className="text-xs text-gray-300 mb-1">Total Remaining</div>
+                  <div className="text-xl font-bold text-white">
+                    {HINTS_PER_GAME - hintsUsedTotal}
+                    <span className="text-xs font-normal text-gray-400"> / {HINTS_PER_GAME}</span>
+                  </div>
+                </div>
+              </div>
               {/* Show hint buttons only if not all used this round */}
-              {hintsUsedThisRound >= HINTS_PER_ROUND ? (
-                <div className="text-red-400 font-semibold py-8">You’ve used all hints for this round.</div>
+              {hintsUsedThisRound >= HINTS_PER_ROUND || (HINTS_PER_GAME - hintsUsedTotal) <= 0 ? (
+                <div className="text-red-400 font-semibold py-8 text-center">
+                  {hintsUsedThisRound >= HINTS_PER_ROUND 
+                    ? "You've used all hints for this round."
+                    : "You've used all your hints for this game."}
+                </div>
               ) : (
                 <div className="grid gap-4">
                   <button 
-                    onClick={() => onSelectHint('where')}
-                    className="hint-button p-4 rounded-xl glass flex items-center hover:bg-white/10 transition-colors"
-                    disabled={hintsUsedThisRound >= HINTS_PER_ROUND || (HINTS_PER_GAME - hintsUsedTotal) <= 0}
+                    onClick={() => handleHintSelection('where')}
+                    className={`hint-button p-4 rounded-xl glass flex items-center transition-colors ${
+                      hintsUsedThisRound >= HINTS_PER_ROUND 
+                        ? 'opacity-50 cursor-not-allowed' 
+                        : 'hover:bg-white/10'}`}
+                    disabled={hintsUsedThisRound >= HINTS_PER_ROUND || loadingHint !== null}
                   >
-                    <div className="bg-gradient-to-br from-indigo-500 to-purple-600 h-12 w-12 rounded-full flex items-center justify-center">
-                      <MapPin className="h-6 w-6 text-white" />
+                    <div className={`bg-gradient-to-br from-indigo-500 to-purple-600 h-12 w-12 rounded-full flex items-center justify-center ${
+                      loadingHint === 'where' ? 'animate-pulse' : ''
+                    }`}>
+                      {loadingHint === 'where' ? (
+                        <div className="h-4 w-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                      ) : (
+                        <MapPin className="h-6 w-6 text-white" />
+                      )}
                     </div>
                     <div className="ml-4 text-left">
                       <h3 className="text-lg font-medium">Where</h3>
                       <p className="text-sm text-gray-300">Reveals the region</p>
                     </div>
                   </button>
+                  
                   <button 
-                    onClick={() => onSelectHint('when')}
-                    className="hint-button p-4 rounded-xl glass flex items-center hover:bg-white/10 transition-colors"
-                    disabled={hintsUsedThisRound >= HINTS_PER_ROUND || (HINTS_PER_GAME - hintsUsedTotal) <= 0}
+                    onClick={() => handleHintSelection('when')}
+                    className={`hint-button p-4 rounded-xl glass flex items-center transition-colors ${
+                      hintsUsedThisRound >= HINTS_PER_ROUND 
+                        ? 'opacity-50 cursor-not-allowed' 
+                        : 'hover:bg-white/10'}`}
+                    disabled={hintsUsedThisRound >= HINTS_PER_ROUND || loadingHint !== null}
                   >
-                    <div className="bg-gradient-to-br from-pink-500 to-red-600 h-12 w-12 rounded-full flex items-center justify-center">
-                      <Clock className="h-6 w-6 text-white" />
+                    <div className={`bg-gradient-to-br from-pink-500 to-red-600 h-12 w-12 rounded-full flex items-center justify-center ${
+                      loadingHint === 'when' ? 'animate-pulse' : ''
+                    }`}>
+                      {loadingHint === 'when' ? (
+                        <div className="h-4 w-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                      ) : (
+                        <Clock className="h-6 w-6 text-white" />
+                      )}
                     </div>
                     <div className="ml-4 text-left">
                       <h3 className="text-lg font-medium">When</h3>
                       <p className="text-sm text-gray-300">Reveals the decade</p>
+                    </div>
+                  </button>
+                  
+                  <button 
+                    onClick={() => handleHintSelection('what')}
+                    className={`hint-button p-4 rounded-xl glass flex items-center transition-colors ${
+                      hintsUsedThisRound >= HINTS_PER_ROUND 
+                        ? 'opacity-50 cursor-not-allowed' 
+                        : 'hover:bg-white/10'}`}
+                    disabled={hintsUsedThisRound >= HINTS_PER_ROUND || loadingHint !== null}
+                  >
+                    <div className={`bg-gradient-to-br from-amber-500 to-orange-600 h-12 w-12 rounded-full flex items-center justify-center ${
+                      loadingHint === 'what' ? 'animate-pulse' : ''
+                    }`}>
+                      {loadingHint === 'what' ? (
+                        <div className="h-4 w-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                      ) : (
+                        <HelpCircle className="h-6 w-6 text-white" />
+                      )}
+                    </div>
+                    <div className="ml-4 text-left">
+                      <h3 className="text-lg font-medium">What</h3>
+                      <p className="text-sm text-gray-300">Reveals a description</p>
                     </div>
                   </button>
                 </div>

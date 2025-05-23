@@ -45,9 +45,9 @@ const GameOverlayHUD: React.FC<GameOverlayHUDProps> = ({
   onTimeout = () => {},
   setRemainingTime = () => {}
 }) => {
-  // Show hint counter as X / 10
+  // Show hint counter as X/Y where Y is the total allowed hints
   const hintsRemaining = hintsAllowed - hintsUsed;
-  const isHintDisabled = hintsRemaining <= 0;
+  const isHintDisabled = hintsRemaining <= 0 || hintsAllowed <= 0;
   
   const navigate = useNavigate();
   

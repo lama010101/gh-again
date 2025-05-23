@@ -81,14 +81,14 @@ const GameRoundPage = () => {
       ? images[currentRoundIndex] 
       : null;
   
-  // Extract hintsUsed from the useHint hook
-  const { hintsUsed: hintsUsedThisRound } = useHint(imageForRound ? {
+  // Extract hints used from the useHint hook
+  const { hintsUsedThisRound = 0 } = useHint(imageForRound ? {
     location_name: imageForRound.location_name,
     gps: { lat: imageForRound.latitude, lng: imageForRound.longitude },
     year: imageForRound.year,
     title: imageForRound.title,
     description: imageForRound.description
-  } : null);
+  } : null) || {};
 
   // Handle guess submission
   const handleSubmitGuess = useCallback(() => {
@@ -128,15 +128,18 @@ const GameRoundPage = () => {
           ) 
         : null;
 
-      // Calculate scores using the standardized system
-      const { timeXP, locationXP, roundXP, roundPercent } = distance !== null 
+      // Calculate base scores using the standardized system
+      const { timeXP = 0, locationXP = 0, roundXP: baseRoundXP = 0, roundPercent = 0 } = distance !== null 
         ? calculateRoundScore(distance, selectedYear, imageForRound.year) 
         : { timeXP: 0, locationXP: 0, roundXP: 0, roundPercent: 0 };
       
+      // Ensure we have valid numbers for the final score calculation
+      const safeRoundXP = Number.isFinite(baseRoundXP) ? baseRoundXP : 0;
+      
       // Apply hint penalties to the score (10% per hint used)
-      const finalScore = calculateHintPenalty(roundXP, hintsUsedThisRound);
+      const finalScore = calculateHintPenalty(safeRoundXP, hintsUsedThisRound);
 
-      console.log(`Distance: ${distance?.toFixed(2) ?? 'N/A'} km, Location XP: ${locationXP.toFixed(1)}, Time XP: ${timeXP.toFixed(1)}, Round XP: ${roundXP.toFixed(1)}, Hints Used: ${hintsUsedThisRound}, Final Score: ${finalScore}`);
+      console.log(`Distance: ${distance?.toFixed(2) ?? 'N/A'} km, Location XP: ${locationXP.toFixed(1)}, Time XP: ${timeXP.toFixed(1)}, Round XP: ${baseRoundXP.toFixed(1)}, Hints Used: ${hintsUsedThisRound}, Final Score: ${finalScore}`);
 
       recordRoundResult(
         {
@@ -221,13 +224,16 @@ const GameRoundPage = () => {
             ) 
           : null;
 
-        // Calculate scores using the standardized system
-        const { timeXP, locationXP, roundXP, roundPercent } = distance !== null 
+        // Calculate base scores using the standardized system
+        const { timeXP = 0, locationXP = 0, roundXP: baseRoundXP = 0, roundPercent = 0 } = distance !== null 
           ? calculateRoundScore(distance, selectedYear, imageForRound.year) 
           : { timeXP: 0, locationXP: 0, roundXP: 0, roundPercent: 0 };
         
+        // Ensure we have valid numbers for the final score calculation
+        const safeRoundXP = Number.isFinite(baseRoundXP) ? baseRoundXP : 0;
+        
         // Apply hint penalties to the score (10% per hint used)
-        const finalScore = calculateHintPenalty(roundXP, hintsUsedThisRound);
+        const finalScore = calculateHintPenalty(safeRoundXP, hintsUsedThisRound);
 
         recordRoundResult(
           {

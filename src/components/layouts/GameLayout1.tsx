@@ -48,6 +48,7 @@ const GameLayout1: React.FC<GameLayout1Props> = ({
   onConfirmNavigation,
 }) => {
   const [isFullScreen, setIsFullScreen] = useState(false);
+  const [currentGuess, setCurrentGuess] = useState<GuessCoordinates | null>(null);
 
   const handleFullscreen = () => {
     setIsFullScreen(true);
@@ -71,6 +72,12 @@ const GameLayout1: React.FC<GameLayout1Props> = ({
   
   // Handle timer timeout
   const handleTimeout = () => {
+    // If no guess was made, submit a default guess at 0,0
+    if (!currentGuess) {
+      onMapGuess(0, 0);
+    }
+    
+    // Always call onComplete to proceed to the next round
     if (onComplete) {
       onComplete();
     }
@@ -78,14 +85,33 @@ const GameLayout1: React.FC<GameLayout1Props> = ({
   
   // Memoize the imageData object passed to useHint
   const memoizedImageData = useMemo(() => {
-    if (!image) return undefined;
-    return {
-      location_name: image.location_name,
-      gps: { lat: image.latitude, lng: image.longitude },
-      year: image.year,
-      title: image.title,
-      description: image.description
-    };
+    if (!image) {
+      console.warn('No image data available for hints');
+      return undefined;
+    }
+    
+    try {
+      return {
+        ...image,
+        // Ensure all required GameImage properties are included
+        gps: { 
+          lat: image.latitude || 0, 
+          lng: image.longitude || 0 
+        },
+        // These properties are already in the GameImage type
+        latitude: image.latitude || 0,
+        longitude: image.longitude || 0,
+        image_url: image.image_url || image.url || '', // Fallback to url if image_url is not available
+        url: image.url || image.image_url || '', // Ensure url is always set
+        description: image.description || '',
+        title: image.title || 'Untitled',
+        location_name: image.location_name || 'Unknown location',
+        year: image.year || new Date().getFullYear()
+      };
+    } catch (error) {
+      console.error('Error preparing image data for hints:', error);
+      return undefined;
+    }
   }, [image]);
 
   // Use the new hint system
@@ -102,14 +128,21 @@ const GameLayout1: React.FC<GameLayout1Props> = ({
   } = useHint(memoizedImageData);
 
   const handleHintClick = () => {
-    if (canSelectHint) {
-      setIsHintModalOpen(true);
-    } else {
-      console.log("Cannot select hint now.");
+    if (!canSelectHint) {
+      console.warn('Cannot select hint: no hints available or already selected');
+      return;
     }
+    
+    if (!image) {
+      console.error('Cannot show hint modal: no image data available');
+      return;
+    }
+    
+    setIsHintModalOpen(true);
   };
 
   const handleCoordinatesSelect = (lat: number, lng: number) => {
+    setCurrentGuess({ lat, lng });
     onMapGuess(lat, lng);
     console.log("Map coordinates selected:", lat, lng);
   };
@@ -139,8 +172,8 @@ const GameLayout1: React.FC<GameLayout1Props> = ({
             remainingTime={formatTime(remainingTime)}
             rawRemainingTime={remainingTime}
             onHintClick={handleHintClick}
-            hintsUsed={hintsUsedTotal || 0}
-            hintsAllowed={HINTS_PER_GAME}
+            hintsUsed={hintsUsedThisRound || 0}
+            hintsAllowed={HINTS_PER_ROUND}
             currentAccuracy={totalGameAccuracy}
             currentScore={totalGameXP}
             onNavigateHome={onNavigateHome}
@@ -183,7 +216,7 @@ const GameLayout1: React.FC<GameLayout1Props> = ({
         onOpenChange={setIsHintModalOpen}
         onSelectHint={selectHint}
         selectedHintType={selectedHintType}
-        hintContent={hintContent}
+        hintContent={hintContent || ''}
         hintsUsedThisRound={hintsUsedThisRound}
         hintsUsedTotal={hintsUsedTotal}
         HINTS_PER_ROUND={HINTS_PER_ROUND}

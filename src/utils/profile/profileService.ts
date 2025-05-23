@@ -363,26 +363,41 @@ export async function updateUserMetrics(
     } else {
       // Update existing metrics
       const metrics_data = existingData as UserMetricsTable;
-      const gamesPlayed = (metrics_data.games_played || 0) + 1;
+      const currentGamesPlayed = metrics_data.games_played || 0;
+      const gamesPlayed = currentGamesPlayed + 1;
+      
+      // Calculate new averages using proper floating point precision
+      const currentTotalAccuracy = (metrics_data.overall_accuracy || 0) * currentGamesPlayed;
       const newOverallAccuracy = Math.round(
-        ((metrics_data.overall_accuracy || 0) * (gamesPlayed - 1) + gameMetrics.gameAccuracy) / gamesPlayed
+        (currentTotalAccuracy + gameMetrics.gameAccuracy) / gamesPlayed
       );
+      
+      const currentTimeTotal = (metrics_data.time_accuracy || 0) * currentGamesPlayed;
       const newTimeAccuracy = Math.round(
-        ((metrics_data.time_accuracy || 0) * (gamesPlayed - 1) + gameMetrics.timeAccuracy) / gamesPlayed
+        (currentTimeTotal + gameMetrics.timeAccuracy) / gamesPlayed
       );
+      
+      const currentLocationTotal = (metrics_data.location_accuracy || 0) * currentGamesPlayed;
       const newLocationAccuracy = Math.round(
-        ((metrics_data.location_accuracy || 0) * (gamesPlayed - 1) + gameMetrics.locationAccuracy) / gamesPlayed
+        (currentLocationTotal + gameMetrics.locationAccuracy) / gamesPlayed
       );
+      
+      // Calculate challenge accuracy (using location accuracy as fallback if no challenge data)
+      const currentChallengeTotal = (metrics_data.challenge_accuracy || 0) * currentGamesPlayed;
+      const newChallengeAccuracy = metrics_data.challenge_accuracy !== undefined
+        ? Math.round((currentChallengeTotal + gameMetrics.locationAccuracy) / gamesPlayed)
+        : metrics_data.challenge_accuracy || 0;
       
       metrics = {
         ...metrics,
         games_played: gamesPlayed,
-        overall_accuracy: newOverallAccuracy,
+        overall_accuracy: Number.isFinite(newOverallAccuracy) ? newOverallAccuracy : 0,
         best_accuracy: Math.max(metrics_data.best_accuracy || 0, gameMetrics.gameAccuracy),
         perfect_games: (metrics_data.perfect_games || 0) + (gameMetrics.isPerfectGame ? 1 : 0),
         xp_total: (metrics_data.xp_total || 0) + gameMetrics.gameXP,
-        time_accuracy: newTimeAccuracy,
-        location_accuracy: newLocationAccuracy,
+        time_accuracy: Number.isFinite(newTimeAccuracy) ? newTimeAccuracy : 0,
+        location_accuracy: Number.isFinite(newLocationAccuracy) ? newLocationAccuracy : 0,
+        challenge_accuracy: Number.isFinite(newChallengeAccuracy) ? newChallengeAccuracy : 0,
         year_bullseye: (metrics_data.year_bullseye || 0) + (gameMetrics.yearBullseye ? 1 : 0),
         location_bullseye: (metrics_data.location_bullseye || 0) + (gameMetrics.locationBullseye ? 1 : 0)
       };

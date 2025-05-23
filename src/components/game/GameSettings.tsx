@@ -67,6 +67,15 @@ const GameSettings: React.FC = () => {
         <h2 className="text-2xl font-bold text-history-primary dark:text-history-light">Game Settings</h2>
       </div>
       
+      {/* Hint Rules */}
+      <div className="mb-6 p-4 bg-yellow-50 dark:bg-yellow-900/20 rounded-lg border border-yellow-200 dark:border-yellow-800">
+        <h3 className="font-semibold text-black dark:text-yellow-100 mb-2">Hint Rules</h3>
+        <ul className="text-sm text-black dark:text-yellow-100 space-y-1 list-disc pl-5">
+          <li>You can use up to <b>2 hints per round</b> and <b>10 hints per game</b>.</li>
+          <li>Each hint costs <b>30 XP or 30% accuracy</b>.</li>
+        </ul>
+      </div>
+
       {/* Hints Selector */}
       <div className="mb-8">
         <div className="flex items-center gap-2 mb-3">
