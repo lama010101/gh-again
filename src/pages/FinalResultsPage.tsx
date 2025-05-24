@@ -34,6 +34,9 @@ const FinalResultsPage = () => {
   
   // Update user metrics and fetch global scores when the final results page is loaded
   useEffect(() => {
+    // Immediately fetch global metrics on page load to ensure navbar shows correct values
+    refreshGlobalMetrics();
+    
     const updateMetricsAndFetchGlobal = async () => {
       if (roundResults.length === 0 || !images.length) {
         console.log('No round results or images to process');
@@ -41,8 +44,6 @@ const FinalResultsPage = () => {
       }
 
       console.log('Processing game results to update user metrics...');
-      console.log('Round results:', roundResults);
-      console.log('Images:', images);
 
       // Calculate final score and percentage
       const roundScores = roundResults.map((result, index) => {
@@ -102,21 +103,58 @@ const FinalResultsPage = () => {
         console.error('No user ID found for updating metrics');
         return;
       }
-      const updateSuccess = await updateUserMetrics(userId, metricsUpdate);
-      if (updateSuccess) {
-        console.log('Successfully updated user metrics');
-        // Wait a moment for DB consistency or localStorage write, then refresh global metrics for navbar
-        setTimeout(() => {
-          refreshGlobalMetrics();
-          console.log('Refreshed global metrics after update');
-        }, 300); // 300ms is enough for localStorage, longer for DB
-      } else {
-        console.error('Failed to update user metrics');
+      
+      try {
+        const updateSuccess = await updateUserMetrics(userId, metricsUpdate);
+        if (updateSuccess) {
+          console.log('Successfully updated user metrics');
+          
+          // CRITICAL FIX: Immediately refresh global metrics to update the navbar
+          // Don't use setTimeout which can be unreliable
+          await refreshGlobalMetrics();
+          console.log('Immediately refreshed global metrics after update');
+          
+          // For guest users, directly update localStorage and the game context
+          if (user?.id || localStorage.getItem('guestSession')) {
+            // If guest user, manually update the localStorage copy to ensure it's updated
+            const isGuest = !!localStorage.getItem('guestSession');
+            if (isGuest) {
+              const storageKey = `user_metrics_${userId}`;
+              const storedMetricsJson = localStorage.getItem(storageKey);
+              if (storedMetricsJson) {
+                try {
+                  // Don't manually set the metrics here - they should already be properly calculated by updateUserMetrics
+                  // This was causing the global accuracy to always be set to the most recent game's accuracy
+                  // Just refresh the metrics to ensure the UI is updated
+                  console.log('Ensuring metrics are properly reflected in the UI');
+                  
+                  // Refresh again to ensure UI is updated
+                  await refreshGlobalMetrics();
+                } catch (e) {
+                  console.error('Error updating guest metrics in localStorage:', e);
+                }
+              }
+            }
+          }
+        } else {
+          console.error('Failed to update user metrics');
+        }
+      } catch (error) {
+        console.error('Error while updating metrics:', error);
       }
     };
     
     updateMetricsAndFetchGlobal();
-  }, [roundResults, images, fetchGlobalMetrics]);
+  }, [roundResults, images, refreshGlobalMetrics]);
+  
+  // Additional effect to ensure global metrics are always refreshed when this page is viewed
+  useEffect(() => {
+    const refreshMetricsTimer = setInterval(() => {
+      refreshGlobalMetrics();
+    }, 2000); // Refresh every 2 seconds while on this page
+    
+    return () => clearInterval(refreshMetricsTimer);
+  }, [refreshGlobalMetrics]);
 
   const handlePlayAgain = async () => {
     resetGame();

@@ -1,12 +1,14 @@
 import React, { useState, useEffect } from 'react';
-import { Clock, Award, User, Settings as SettingsIcon } from "lucide-react";
+import { Clock, Award, User } from "lucide-react";
 import GlobalSettingsModal from '@/components/GlobalSettingsModal';
 import FriendsGameModal from '@/components/FriendsGameModal';
+import { AuthModal } from '@/components/AuthModal';
 import { useAuth } from '@/contexts/AuthContext';
 import { UserSettings, fetchUserSettings, UserProfile, fetchUserProfile } from '@/utils/profile/profileService';
 import { GameModeCard } from "@/components/GameModeCard";
 import { useGame } from "@/contexts/GameContext";
 import { useNavigate } from 'react-router-dom';
+import { useToast } from '@/hooks/use-toast';
 
 const HomePage = () => {
   const [isSettingsModalOpen, setIsSettingsModalOpen] = useState(false);
@@ -46,20 +48,28 @@ const HomePage = () => {
     }
   };
 
+  const { toast } = useToast();
+
   const handleStartGame = async (mode: string) => {
-    if (mode === 'time-attack') {
-      setIsFriendsModalOpen(true);
-      return;
-    }
-    
+    // Check if user is authenticated (either guest or registered)
     if (!user) {
       setPendingMode(mode);
       setShowAuthModal(true);
       return;
     }
+
+    if (mode === 'time-attack') {
+      setIsFriendsModalOpen(true);
+      return;
+    }
     
     if (!gameContext) {
       console.error('Game context is not available');
+      toast({
+        variant: "destructive",
+        title: "Error",
+        description: "Unable to start game. Please try again.",
+      });
       return;
     }
     
@@ -69,12 +79,19 @@ const HomePage = () => {
         navigate('/game');
       } catch (error) {
         console.error('Error starting game:', error);
+        toast({
+          variant: "destructive",
+          title: "Error",
+          description: "Failed to start the game. Please try again.",
+        });
       }
     }
   };
   
   const handleStartFriendsGame = (settings: { timerSeconds: number; hintsPerGame: number }) => {
     setIsFriendsModalOpen(false);
+    
+    // Check if user is authenticated (either guest or registered)
     if (!user) {
       setPendingMode('time-attack');
       setShowAuthModal(true);
@@ -83,12 +100,26 @@ const HomePage = () => {
     
     if (!gameContext) {
       console.error('Game context is not available');
+      toast({
+        variant: "destructive",
+        title: "Error",
+        description: "Unable to start game. Please try again.",
+      });
       return;
     }
     
     if (!isLoading) {
-      startGame?.(settings);
-      navigate('/game');
+      try {
+        startGame?.(settings);
+        navigate('/game');
+      } catch (error) {
+        console.error('Error starting friends game:', error);
+        toast({
+          variant: "destructive",
+          title: "Error",
+          description: "Failed to start the game. Please try again.",
+        });
+      }
     }
   };
 
@@ -104,10 +135,12 @@ const HomePage = () => {
   const handleGuestContinue = async () => {
     setShowAuthModal(false);
     if (pendingMode) {
+      // After guest login, start the game using the pending mode
       await handleStartGame(pendingMode);
       setPendingMode(null);
     }
   };
+
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-history-primary to-history-secondary text-white">
@@ -172,6 +205,19 @@ const HomePage = () => {
         onClose={() => setIsFriendsModalOpen(false)}
         onStartGame={handleStartFriendsGame}
         isLoading={isLoading}
+      />
+
+      <AuthModal
+        isOpen={showAuthModal}
+        onClose={() => {
+          setShowAuthModal(false);
+          setPendingMode(null);
+        }}
+        onAuthSuccess={() => {
+          // This will be handled by the pending mode logic in handleAuthSuccess
+          setShowAuthModal(false);
+        }}
+        onGuestContinue={handleGuestContinue}
       />
 </div>
     </div>

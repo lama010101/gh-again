@@ -46,10 +46,21 @@ export const NavProfile = () => {
     }
   };
   
-  // Fetch global metrics when the component mounts or when user changes
+  // Fetch global metrics when the component mounts, when user changes, and periodically
   useEffect(() => {
     if (user) {
+      // Initial fetch
+      console.log('NavProfile: Fetching global metrics for user', user.id);
       fetchGlobalMetrics();
+      
+      // Set up periodic refresh every 5 seconds to ensure we always have latest scores
+      const refreshInterval = setInterval(() => {
+        fetchGlobalMetrics()
+          .catch(err => console.error('Error refreshing global metrics in NavProfile:', err));
+      }, 5000);
+      
+      // Clean up interval on unmount
+      return () => clearInterval(refreshInterval);
     }
   }, [user, fetchGlobalMetrics]);
 

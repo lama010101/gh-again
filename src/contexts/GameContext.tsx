@@ -186,21 +186,30 @@ export const GameProvider: React.FC<GameProviderProps> = ({ children }) => {
           const guestUser = JSON.parse(guestSession);
           const storageKey = `user_metrics_${guestUser.id}`;
           const storedMetricsJson = localStorage.getItem(storageKey);
-          
+
           if (storedMetricsJson) {
             const storedMetrics = JSON.parse(storedMetricsJson);
-            console.log('Found guest metrics in localStorage:', storedMetrics);
-            setGlobalAccuracy(() => storedMetrics.overall_accuracy || 0);
-            setGlobalXP(() => storedMetrics.xp_total || 0);
-            console.log('Updated global metrics for guest user. XP:', storedMetrics.xp_total, 'Accuracy:', storedMetrics.overall_accuracy);
-            return; // Exit early if we found guest metrics
-          } else {
-            // Initialize metrics for new guest users
-            console.log('No metrics found for guest user, setting to 0');
-            setGlobalAccuracy(() => 0);
-            setGlobalXP(() => 0);
+            // Force numeric conversions for all metrics
+            const accuracyValue = Number(storedMetrics.overall_accuracy || 0);
+            const xpValue = Number(storedMetrics.xp_total || 0);
             
-            // Create initial metrics for the guest user
+            console.log('[GameContext] GLOBAL METRICS FETCH - PRECISE VALUES:');
+            console.log(`Raw global XP from storage: ${storedMetrics.xp_total}`);
+            console.log(`Parsed global XP (forced number): ${xpValue}`);
+            console.log(`Raw global accuracy from storage: ${storedMetrics.overall_accuracy}`);
+            console.log(`Parsed global accuracy (forced number): ${accuracyValue}`);
+            
+            // Set state with verified numeric values
+            setGlobalAccuracy(accuracyValue);
+            setGlobalXP(xpValue);
+            console.log('[GameContext] Updated global metrics for guest user:', { 
+              overall_accuracy: accuracyValue,
+              xp_total: xpValue
+            });
+            return;
+          } else {
+            setGlobalAccuracy(0);
+            setGlobalXP(0);
             const initialMetrics = {
               user_id: guestUser.id,
               xp_total: 0,
@@ -209,61 +218,50 @@ export const GameProvider: React.FC<GameProviderProps> = ({ children }) => {
               updated_at: new Date().toISOString()
             };
             localStorage.setItem(storageKey, JSON.stringify(initialMetrics));
-            console.log('Initialized metrics for guest user:', initialMetrics);
-            return; // Exit early
+            console.log('[GameContext] Initialized metrics for guest user:', initialMetrics);
+            return;
           }
         } catch (e) {
-          console.log('Error parsing guest metrics:', e);
-          // Continue to check authenticated user
+          console.error('[GameContext] Error parsing guest metrics:', e);
         }
       }
-      
+
       // If no guest session or error parsing it, try authenticated user
       const { data: { user } } = await supabase.auth.getUser();
-      
       if (!user) {
-        console.log('No user found, setting global metrics to 0');
-        // Initialize with zeros
-        setGlobalAccuracy(() => 0);
-        setGlobalXP(() => 0);
+        setGlobalAccuracy(0);
+        setGlobalXP(0);
+        console.log('[GameContext] No user found, set metrics to 0');
         return;
       }
-      
-      console.log('Fetching metrics for registered user:', user.id);
-      // For authenticated users, fetch from Supabase
       const { data: metrics, error: fetchError } = await supabase
         .from('user_metrics')
         .select('overall_accuracy, xp_total')
         .eq('user_id', user.id)
         .single();
-      
       if (fetchError) {
-        // Handle case where user exists but has no metrics yet
-        if (fetchError.code === 'PGRST116') { // Not found error
-          console.log('No metrics found for registered user, setting to 0');
-          setGlobalAccuracy(() => 0);
-          setGlobalXP(() => 0);
+        if (fetchError.code === 'PGRST116') {
+          setGlobalAccuracy(0);
+          setGlobalXP(0);
+          console.log('[GameContext] No metrics found for registered user, set to 0');
         } else {
-          console.error('Error fetching user metrics:', fetchError);
+          console.error('[GameContext] Error fetching user metrics:', fetchError);
         }
         return;
       }
-      
       if (metrics) {
-        console.log('Found metrics for registered user:', metrics);
-        setGlobalAccuracy(() => metrics.overall_accuracy || 0);
-        setGlobalXP(() => metrics.xp_total || 0);
-        console.log('Updated global metrics for registered user. XP:', metrics.xp_total, 'Accuracy:', metrics.overall_accuracy);
+        setGlobalAccuracy(metrics.overall_accuracy || 0);
+        setGlobalXP(metrics.xp_total || 0);
+        console.log('[GameContext] Updated global metrics for registered user:', metrics);
       } else {
-        console.log('No metrics data returned for registered user');
-        setGlobalAccuracy(() => 0);
-        setGlobalXP(() => 0);
+        setGlobalAccuracy(0);
+        setGlobalXP(0);
+        console.log('[GameContext] No metrics data returned for registered user');
       }
     } catch (err) {
-      console.error('Error in fetchGlobalMetrics:', err);
-      // Set defaults on error
-      setGlobalAccuracy(() => 0);
-      setGlobalXP(() => 0);
+      setGlobalAccuracy(0);
+      setGlobalXP(0);
+      console.error('[GameContext] Error in fetchGlobalMetrics:', err);
     }
   }, []);
 

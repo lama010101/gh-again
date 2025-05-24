@@ -361,35 +361,89 @@ export async function updateUserMetrics(
           const currentGamesPlayed = storedMetrics.games_played || 0;
           const gamesPlayed = currentGamesPlayed + 1;
           
-          // Calculate new averages
+          // Calculate new averages with detailed logging for debugging
+          console.log('===== GLOBAL SCORE CALCULATION =====');
+          console.log('Current games played:', currentGamesPlayed);
+          console.log('New games played total:', gamesPlayed);
+          console.log('Previous overall accuracy:', storedMetrics.overall_accuracy || 0);
+          console.log('Current game accuracy:', gameMetrics.gameAccuracy);
+          console.log('Previous total XP:', storedMetrics.xp_total || 0);
+          console.log('Current game XP:', gameMetrics.gameXP);
+          
+          // Calculate weighted average for overall accuracy
           const currentTotalAccuracy = (storedMetrics.overall_accuracy || 0) * currentGamesPlayed;
           const newOverallAccuracy = Math.round(
             (currentTotalAccuracy + gameMetrics.gameAccuracy) / gamesPlayed
           );
+          console.log('New overall accuracy (weighted avg):', newOverallAccuracy);
           
+          // Time accuracy weighted average
           const currentTimeTotal = (storedMetrics.time_accuracy || 0) * currentGamesPlayed;
           const newTimeAccuracy = Math.round(
             (currentTimeTotal + gameMetrics.timeAccuracy) / gamesPlayed
           );
           
+          // Location accuracy weighted average
           const currentLocationTotal = (storedMetrics.location_accuracy || 0) * currentGamesPlayed;
           const newLocationAccuracy = Math.round(
             (currentLocationTotal + gameMetrics.locationAccuracy) / gamesPlayed
           );
           
+          // !!!CRITICAL BUGFIX: XP Calculation
+          // Force all values to be numbers
+          let previousTotalXP = 0;
+          try {
+            previousTotalXP = Number(storedMetrics.xp_total);
+            if (isNaN(previousTotalXP)) previousTotalXP = 0;
+          } catch (e) {
+            previousTotalXP = 0;
+          }
+          
+          let currentGameXP = 0;
+          try {
+            currentGameXP = Number(gameMetrics.gameXP);
+            if (isNaN(currentGameXP)) currentGameXP = 0;
+          } catch (e) {
+            currentGameXP = 0;
+          }
+          
+          // Calculate exact sum with full validation
+          const exactSum = previousTotalXP + currentGameXP;
+          
+          // Ensure we have a valid number with simple math
+          const newTotalXP = Math.round(exactSum);
+          
+          console.log('======= CRITICAL XP BUGFIX ======');
+          console.log('Previous XP (raw from storage):', storedMetrics.xp_total, 'type:', typeof storedMetrics.xp_total);
+          console.log('Previous XP (validated number):', previousTotalXP);
+          console.log('Current game XP (validated):', currentGameXP);
+          console.log('New EXACT sum:', exactSum);
+          console.log('New total XP (rounded):', newTotalXP);
+          console.log('Basic validation check:', previousTotalXP, '+', currentGameXP, '=', previousTotalXP + currentGameXP);
+          console.log('==================================');
+          
+          // Create the updated metrics object
           metrics = {
             ...metrics,
             games_played: gamesPlayed,
-            overall_accuracy: Number.isFinite(newOverallAccuracy) ? newOverallAccuracy : 0,
+            // Ensure accuracy values are properly bounded
+            overall_accuracy: Number.isFinite(newOverallAccuracy) ? Math.min(100, newOverallAccuracy) : 0,
             best_accuracy: Math.max(storedMetrics.best_accuracy || 0, gameMetrics.gameAccuracy),
             perfect_games: (storedMetrics.perfect_games || 0) + (gameMetrics.isPerfectGame ? 1 : 0),
-            xp_total: (storedMetrics.xp_total || 0) + gameMetrics.gameXP,
-            time_accuracy: Number.isFinite(newTimeAccuracy) ? newTimeAccuracy : 0,
-            location_accuracy: Number.isFinite(newLocationAccuracy) ? newLocationAccuracy : 0,
-            challenge_accuracy: 0,
+            // Use the calculated XP total
+            xp_total: newTotalXP,
+            time_accuracy: Number.isFinite(newTimeAccuracy) ? Math.min(100, newTimeAccuracy) : 0,
+            location_accuracy: Number.isFinite(newLocationAccuracy) ? Math.min(100, newLocationAccuracy) : 0,
+            challenge_accuracy: storedMetrics.challenge_accuracy || 0,
             year_bullseye: (storedMetrics.year_bullseye || 0) + (gameMetrics.yearBullseye ? 1 : 0),
             location_bullseye: (storedMetrics.location_bullseye || 0) + (gameMetrics.locationBullseye ? 1 : 0)
           };
+          
+          console.log('Final metrics to save:', {
+            games_played: metrics.games_played,
+            overall_accuracy: metrics.overall_accuracy,
+            xp_total: metrics.xp_total
+          });
         } catch (e) {
           console.error('Error parsing stored metrics for guest user:', e);
           // Initialize new metrics for this guest
@@ -426,10 +480,22 @@ export async function updateUserMetrics(
         };
       }
       
-      // Save updated metrics to localStorage
-      localStorage.setItem(storageKey, JSON.stringify(metrics));
-      console.log(`Successfully updated metrics for guest user ${userId}:`, metrics);
-      return true;
+      // Save updated metrics to localStorage for guest users
+      if (isGuestUser) {
+        try {
+          const storageKey = `user_metrics_${userId}`;
+          localStorage.setItem(storageKey, JSON.stringify(metrics));
+          console.log('Saved updated metrics to localStorage for guest user:', metrics);
+          
+          // Force a trigger event to ensure localStorage change is detected
+          window.dispatchEvent(new Event('storage'));
+          
+          return true;
+        } catch (error) {
+          console.error('Error saving metrics to localStorage:', error);
+          return false;
+        }
+      }
     }
     
     // For regular users, get existing metrics from Supabase
