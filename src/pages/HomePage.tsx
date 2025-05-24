@@ -112,16 +112,7 @@ const HomePage = () => {
   return (
     <div className="min-h-screen bg-gradient-to-b from-history-primary to-history-secondary text-white">
       <div className="container mx-auto px-4 py-12">
-        {/* Settings Button */}
-        <div className="flex justify-end mb-8">
-          <button
-            onClick={() => setIsSettingsModalOpen(true)}
-            className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-history-primary hover:bg-history-primary/90 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-white transition-colors"
-          >
-            <SettingsIcon className="h-5 w-5 mr-2" />
-            Settings
-          </button>
-        </div>
+        {/* Removed Settings Button */}
 
       {/* Game instructions, settings, etc. */}
       <div className="my-4"></div>

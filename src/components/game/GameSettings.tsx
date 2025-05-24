@@ -18,15 +18,15 @@ const GameSettings: React.FC = () => {
   const [localTimer, setLocalTimer] = useState(roundTimerSec);
   const [timerEnabled, setTimerEnabled] = useState(roundTimerSec > 0);
   
-  // Format time for display
+  // Format time for display in minutes and seconds (e.g., '1m20s' or '2m10s')
   const formatTime = (seconds: number): string => {
     if (seconds === 0) return "No timer";
-    if (seconds < 60) return `${seconds} seconds`;
+    if (seconds < 60) return `${seconds}s`;
     const minutes = Math.floor(seconds / 60);
     const remainingSeconds = seconds % 60;
     return remainingSeconds > 0 
-      ? `${minutes} min ${remainingSeconds} sec` 
-      : `${minutes} min`;
+      ? `${minutes}m${remainingSeconds}s`
+      : `${minutes}m`;
   };
 
   // Update context and save to localStorage when values change
@@ -139,13 +139,16 @@ const GameSettings: React.FC = () => {
             
             <div className="flex justify-between text-xs text-gray-500 dark:text-gray-400 mt-1">
               <span>5s</span>
+              <span>30s</span>
               <span>1m</span>
+              <span>2m</span>
               <span>3m</span>
+              <span>4m</span>
               <span>5m</span>
             </div>
             
             <div className="relative mt-1">
-              {[60, 180].map((seconds) => {
+              {[30, 60, 120, 180, 240, 300].map((seconds) => {
                 const position = ((seconds - 5) / (300 - 5)) * 100;
                 return (
                   <div 
