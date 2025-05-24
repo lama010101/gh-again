@@ -21,6 +21,7 @@ import SettingsPage from "./pages/SettingsPage";
 import GameRoomPage from "./pages/GameRoomPage";
 import FriendsPage from "./pages/FriendsPage";
 import AuthPage from "./pages/AuthPage";
+import AdminPage from "./pages/AdminPage";
 import AdminImagesPage from "./pages/AdminImagesPage";
 import AdminBadgesPage from "./pages/AdminBadgesPage";
 import AdminUsersPage from "./pages/AdminUsersPage";
@@ -115,9 +116,12 @@ const App = () => {
                         <Route path="settings" element={<SettingsPage />} />
                         <Route path="room" element={<GameRoomPage />} />
                         <Route path="friends" element={<FriendsPage />} />
-                        <Route path="admin/images" element={<AdminImagesPage />} />
-                        <Route path="admin/badges" element={<AdminBadgesPage />} />
-                        <Route path="admin/users" element={<AdminUsersPage />} /> // Use AdminUsersPage
+                        <Route path="admin" element={<AdminPage />}>
+                          <Route index element={<Navigate to="images" replace />} />
+                          <Route path="images" element={<AdminImagesPage />} />
+                          <Route path="badges" element={<AdminBadgesPage />} />
+                          <Route path="users" element={<AdminUsersPage />} />
+                        </Route>
                         <Route path="game/room/:roomId/round/:roundNumber" element={<GameRoundPage />} />
                         <Route path="game/room/:roomId/round/:roundNumber/results" element={<RoundResultsPage />} />
                       </Route>

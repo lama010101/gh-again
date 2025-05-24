@@ -27,6 +27,7 @@ const FinalResultsPage = () => {
     resetGame,
     roundResults,
     fetchGlobalMetrics,
+    refreshGlobalMetrics,
     globalXP = 0,
     globalAccuracy = 0
   } = useGame();
@@ -80,37 +81,37 @@ const FinalResultsPage = () => {
       const yearBullseye = roundResults.some(result => result.guessYear === images[result.roundIndex]?.year);
       const locationBullseye = roundResults.some(result => (result.distanceKm || 0) < 10);
       
-      // Get current user
+      // Get current user (may be guest or registered)
       const { data: { user } } = await supabase.auth.getUser();
-      
-      if (user) {
-        console.log('Updating metrics for user:', user.id);
-        // Prepare metrics update
-        const metricsUpdate = {
-          gameAccuracy: finalPercent,
-          gameXP: finalXP,
-          isPerfectGame,
-          locationAccuracy: avgLocationAccuracy,
-          timeAccuracy: avgTimeAccuracy,
-          yearBullseye,
-          locationBullseye
-        };
-        
-        console.log('Metrics to update:', metricsUpdate);
-        
-        // Update user metrics in Supabase
-        const updateSuccess = await updateUserMetrics(user.id, metricsUpdate);
-        
-        if (updateSuccess) {
-          console.log('Successfully updated user metrics');
-          // Fetch updated global metrics after updating
-          await fetchGlobalMetrics();
+
+      // Prepare metrics update
+      const metricsUpdate = {
+        gameAccuracy: finalPercent,
+        gameXP: finalXP,
+        isPerfectGame,
+        locationAccuracy: avgLocationAccuracy,
+        timeAccuracy: avgTimeAccuracy,
+        yearBullseye,
+        locationBullseye
+      };
+      console.log('Metrics to update:', metricsUpdate);
+
+      // Always call updateUserMetrics for both guest and registered users
+      const userId = user?.id || (JSON.parse(localStorage.getItem('guestSession') || '{}').id);
+      if (!userId) {
+        console.error('No user ID found for updating metrics');
+        return;
+      }
+      const updateSuccess = await updateUserMetrics(userId, metricsUpdate);
+      if (updateSuccess) {
+        console.log('Successfully updated user metrics');
+        // Wait a moment for DB consistency or localStorage write, then refresh global metrics for navbar
+        setTimeout(() => {
+          refreshGlobalMetrics();
           console.log('Refreshed global metrics after update');
-        } else {
-          console.error('Failed to update user metrics');
-        }
+        }, 300); // 300ms is enough for localStorage, longer for DB
       } else {
-        console.log('No authenticated user found, skipping metrics update');
+        console.error('Failed to update user metrics');
       }
     };
     
@@ -119,6 +120,7 @@ const FinalResultsPage = () => {
 
   const handlePlayAgain = async () => {
     resetGame();
+    navigate('/test'); // Navigate to the home page first to ensure a clean state
     await startGame();
   };
 
@@ -227,7 +229,7 @@ const FinalResultsPage = () => {
         </div>
       </nav>
       
-      <div className="flex-grow p-4 sm:p-6 md:p-8">
+      <div className="flex-grow p-4 sm:p-6 md:p-8 pb-36"> {/* Add extra bottom padding for sticky footer */}
         <div className="max-w-4xl mx-auto w-full">
           <div className="text-center mb-8 sm:mb-12">
             <h1 className="text-3xl sm:text-4xl font-bold mb-3 sm:mb-4 text-history-primary dark:text-history-light">
@@ -368,40 +370,43 @@ const FinalResultsPage = () => {
           })}
         </div>
 
-        <div className="mt-8 flex flex-col sm:flex-row justify-center gap-4 w-full max-w-md mx-auto">
-          <Button
-            onClick={handlePlayAgain}
-            className="flex-1 bg-history-primary hover:bg-history-primary/90 text-white gap-2 py-6 text-base"
-            size="lg"
-          >
-            <Loader size={20} />
-            Play Again
-          </Button>
-          <div className="flex flex-col sm:flex-row gap-4 w-full sm:w-auto">
-            <Button
-              onClick={() => {
-                // Share functionality would go here
-                alert("Share functionality coming soon!");
-              }}
-              variant="outline"
-              className="w-full sm:w-auto border-history-primary text-history-primary hover:bg-history-primary/10 gap-2 py-6 text-base"
-              size="lg"
-            >
-              <Share2 size={20} />
-              Share
-            </Button>
-            <Button
-              onClick={handleHome}
-              variant="outline"
-              className="w-full sm:w-auto gap-2 py-6 text-base"
-              size="lg"
-            >
-              <Home size={20} />
-              Home
-            </Button>
-          </div>
-        </div>
+
       </div>
+      {/* Non-sticky Share and Home Buttons at bottom of content */}
+      <div className="max-w-md mx-auto w-full flex flex-row gap-4 px-4 py-6 mt-8 mb-24">
+        <Button
+          onClick={() => {
+            // Share functionality would go here
+            alert("Share functionality coming soon!");
+          }}
+          variant="outline"
+          className="flex-1 border-history-primary text-history-primary hover:bg-history-primary/10 gap-2 py-6 text-base"
+          size="lg"
+        >
+          <Share2 size={20} />
+          Share
+        </Button>
+        <Button
+          onClick={handleHome}
+          variant="outline"
+          className="flex-1 gap-2 py-6 text-base"
+          size="lg"
+        >
+          <Home size={20} />
+          Home
+        </Button>
+      </div>
+      </div>
+      {/* Sticky Play Again Button */}
+      <div className="fixed bottom-0 left-0 w-full z-50 bg-white/90 dark:bg-gray-900/95 backdrop-blur shadow-[0_-2px_12px_rgba(0,0,0,0.05)] px-4 py-3 flex justify-center items-center border-t border-gray-200 dark:border-gray-700">
+        <Button
+          onClick={handlePlayAgain}
+          className="w-full max-w-xs bg-history-primary hover:bg-history-primary/90 text-white gap-2 py-6 text-base"
+          size="lg"
+        >
+          <Loader size={20} />
+          Play Again
+        </Button>
       </div>
     </div>
   );

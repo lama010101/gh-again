@@ -308,13 +308,21 @@ export async function updateUserMetrics(
   }
 ): Promise<boolean> {
   try {
-    // First, get existing metrics
-    const { data: existingData, error: fetchError } = await supabase
-      .from('user_metrics')
-      .select('*')
-      .eq('user_id', userId)
-      .single();
-
+    // Check if this is a guest user first
+    const guestSession = localStorage.getItem('guestSession');
+    let isGuestUser = false;
+    
+    if (guestSession) {
+      try {
+        const guestUser = JSON.parse(guestSession);
+        if (guestUser.id === userId) {
+          isGuestUser = true;
+        }
+      } catch (e) {
+        console.error('Error parsing guest session:', e);
+      }
+    }
+    
     // Define a type that includes all possible metrics fields
     type UserMetricsUpsert = {
       user_id: string;
@@ -340,6 +348,97 @@ export async function updateUserMetrics(
       games_played: 0,
       updated_at: new Date().toISOString()
     };
+    
+    // For guest users, get existing metrics from localStorage
+    if (isGuestUser) {
+      console.log('Updating metrics for guest user:', userId);
+      const storageKey = `user_metrics_${userId}`;
+      const storedMetricsJson = localStorage.getItem(storageKey);
+      
+      if (storedMetricsJson) {
+        try {
+          const storedMetrics = JSON.parse(storedMetricsJson);
+          const currentGamesPlayed = storedMetrics.games_played || 0;
+          const gamesPlayed = currentGamesPlayed + 1;
+          
+          // Calculate new averages
+          const currentTotalAccuracy = (storedMetrics.overall_accuracy || 0) * currentGamesPlayed;
+          const newOverallAccuracy = Math.round(
+            (currentTotalAccuracy + gameMetrics.gameAccuracy) / gamesPlayed
+          );
+          
+          const currentTimeTotal = (storedMetrics.time_accuracy || 0) * currentGamesPlayed;
+          const newTimeAccuracy = Math.round(
+            (currentTimeTotal + gameMetrics.timeAccuracy) / gamesPlayed
+          );
+          
+          const currentLocationTotal = (storedMetrics.location_accuracy || 0) * currentGamesPlayed;
+          const newLocationAccuracy = Math.round(
+            (currentLocationTotal + gameMetrics.locationAccuracy) / gamesPlayed
+          );
+          
+          metrics = {
+            ...metrics,
+            games_played: gamesPlayed,
+            overall_accuracy: Number.isFinite(newOverallAccuracy) ? newOverallAccuracy : 0,
+            best_accuracy: Math.max(storedMetrics.best_accuracy || 0, gameMetrics.gameAccuracy),
+            perfect_games: (storedMetrics.perfect_games || 0) + (gameMetrics.isPerfectGame ? 1 : 0),
+            xp_total: (storedMetrics.xp_total || 0) + gameMetrics.gameXP,
+            time_accuracy: Number.isFinite(newTimeAccuracy) ? newTimeAccuracy : 0,
+            location_accuracy: Number.isFinite(newLocationAccuracy) ? newLocationAccuracy : 0,
+            challenge_accuracy: 0,
+            year_bullseye: (storedMetrics.year_bullseye || 0) + (gameMetrics.yearBullseye ? 1 : 0),
+            location_bullseye: (storedMetrics.location_bullseye || 0) + (gameMetrics.locationBullseye ? 1 : 0)
+          };
+        } catch (e) {
+          console.error('Error parsing stored metrics for guest user:', e);
+          // Initialize new metrics for this guest
+          metrics = {
+            ...metrics,
+            games_played: 1,
+            overall_accuracy: gameMetrics.gameAccuracy,
+            best_accuracy: gameMetrics.gameAccuracy,
+            perfect_games: gameMetrics.isPerfectGame ? 1 : 0,
+            xp_total: gameMetrics.gameXP,
+            time_accuracy: gameMetrics.timeAccuracy,
+            location_accuracy: gameMetrics.locationAccuracy,
+            challenge_accuracy: 0,
+            global_rank: 0,
+            year_bullseye: gameMetrics.yearBullseye ? 1 : 0,
+            location_bullseye: gameMetrics.locationBullseye ? 1 : 0
+          };
+        }
+      } else {
+        // No stored metrics found, create new metrics
+        metrics = {
+          ...metrics,
+          games_played: 1,
+          overall_accuracy: gameMetrics.gameAccuracy,
+          best_accuracy: gameMetrics.gameAccuracy,
+          perfect_games: gameMetrics.isPerfectGame ? 1 : 0,
+          xp_total: gameMetrics.gameXP,
+          time_accuracy: gameMetrics.timeAccuracy,
+          location_accuracy: gameMetrics.locationAccuracy,
+          challenge_accuracy: 0,
+          global_rank: 0,
+          year_bullseye: gameMetrics.yearBullseye ? 1 : 0,
+          location_bullseye: gameMetrics.locationBullseye ? 1 : 0
+        };
+      }
+      
+      // Save updated metrics to localStorage
+      localStorage.setItem(storageKey, JSON.stringify(metrics));
+      console.log(`Successfully updated metrics for guest user ${userId}:`, metrics);
+      return true;
+    }
+    
+    // For regular users, get existing metrics from Supabase
+    console.log('Updating metrics for registered user:', userId);
+    const { data: existingData, error: fetchError } = await supabase
+      .from('user_metrics')
+      .select('*')
+      .eq('user_id', userId)
+      .single();
 
     if (fetchError && fetchError.code === 'PGRST116') {
       // No existing record, create new metrics

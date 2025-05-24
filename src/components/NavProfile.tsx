@@ -25,7 +25,8 @@ import {
   Zap,
   Terminal,
   LogOut,
-  Bug
+  Bug,
+  LayoutDashboard
 } from "lucide-react";
 import { Link, useNavigate } from "react-router-dom";
 
@@ -149,26 +150,12 @@ export const NavProfile = () => {
         </DropdownMenuItem>
         {/* Show Admin link for any signed-in user (not just Google users) */}
         {!user.isGuest && (
-          <>
           <DropdownMenuItem asChild>
-            <Link to="/test/admin/images" className="flex items-center">
-              <ShieldCheck className="mr-2 h-4 w-4" />
-                <span>Admin: Images</span>
-              </Link>
-            </DropdownMenuItem>
-            <DropdownMenuItem asChild>
-              <Link to="/test/admin/badges" className="flex items-center">
-                <Award className="mr-2 h-4 w-4" />
-                <span>Admin: Badges</span>
+            <Link to="/test/admin" className="flex items-center">
+              <LayoutDashboard className="mr-2 h-4 w-4" />
+              <span>Admin</span>
             </Link>
           </DropdownMenuItem>
-          <DropdownMenuItem asChild>
-            <Link to="/test/admin/users" className="flex items-center">
-              <Users className="mr-2 h-4 w-4" />
-              <span>Users</span>
-            </Link>
-          </DropdownMenuItem>
-          </>
         )}
         <DropdownMenuItem
           onClick={() => signOut()}

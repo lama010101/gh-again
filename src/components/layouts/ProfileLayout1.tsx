@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useCallback } from 'react';
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { 
@@ -61,110 +61,97 @@ const ProfileLayout1 = () => {
   const [statsLoading, setStatsLoading] = useState(true);
   const [settingsLoading, setSettingsLoading] = useState(true);
   
+  // Helper to load guest user data from localStorage
+  const loadGuestUserData = useCallback(async () => {
+    if (!user?.isGuest) return null;
+    try {
+      const storageKey = `user_metrics_${user.id}`;
+      const storedMetricsJson = localStorage.getItem(storageKey);
+      if (storedMetricsJson) {
+        const storedMetrics = JSON.parse(storedMetricsJson);
+        const userStats: UserStats = {
+          games_played: storedMetrics.games_played || 0,
+          avg_accuracy: storedMetrics.overall_accuracy || 0,
+          best_accuracy: storedMetrics.overall_accuracy || 0,
+          perfect_scores: storedMetrics.perfect_games || 0,
+          total_xp: storedMetrics.xp_total || 0,
+          global_rank: 0,
+          time_accuracy: storedMetrics.time_accuracy || 0,
+          location_accuracy: storedMetrics.location_accuracy || 0,
+          challenge_accuracy: 0
+        };
+        return userStats;
+      }
+      return null;
+    } catch (e) {
+      console.error('Error loading guest user data:', e);
+      return null;
+    }
+  }, [user]);
+
   // Fetch all profile data on component mount
   useEffect(() => {
     const fetchProfileData = async () => {
       if (!user) return;
-      
       try {
-        // Fetch user profile
-        const userProfile = await fetchUserProfile(user.id);
-        
-        // Check if user has an avatar
-        const hasAvatar = !!(userProfile?.avatar_url || userProfile?.avatar_image_url);
-        
-        // If no avatar, assign one based on their name
-        if (!hasAvatar) {
-          // No avatar assignment logic available; just set profile as is
-          setProfile(userProfile);
-        } else {
-          setProfile(userProfile);
-        }
-        
-        // For guest users, check localStorage first
+        setIsLoading(true);
         if (user.isGuest) {
-          setStatsLoading(true);
-          
-          // Get user metrics from localStorage
-          const storageKey = `user_metrics_${user.id}`;
-          const storedMetricsJson = localStorage.getItem(storageKey);
-          
-          if (storedMetricsJson) {
-            try {
-              const storedMetrics = JSON.parse(storedMetricsJson);
-              
-              // Convert stored metrics to UserStats format
-              const userStats: UserStats = {
-                games_played: storedMetrics.games_played || 0,
-                avg_accuracy: storedMetrics.overall_accuracy || 0,
-                best_accuracy: storedMetrics.overall_accuracy || 0, // Using the same value since we don't track best separately
-                perfect_scores: storedMetrics.perfect_games || 0,
-                total_xp: storedMetrics.xp_total || 0,
-                global_rank: 0, // Not applicable for guest users
-                time_accuracy: storedMetrics.time_accuracy || 0,
-                location_accuracy: storedMetrics.location_accuracy || 0,
-                challenge_accuracy: 0 // Not tracked separately
-              };
-              
-              setStats(userStats);
-              setMetrics(getDefaultMetrics(userStats));
-              
-              // Evaluate badges based on metrics
-              const evaluations = await evaluateUserBadges(user.id, storedMetrics);
-              setBadgeEvaluations(evaluations);
-              setBadgesLoading(false);
-            } catch (e) {
-              console.error('Error parsing stored metrics for guest user:', e);
-              const defaultStats = getDefaultStats();
-              setStats(defaultStats);
-              setMetrics(getDefaultMetrics(defaultStats));
-            }
-          } else {
-            // No stored metrics found, using defaults
-            const defaultStats = getDefaultStats();
-            setStats(defaultStats);
-            setMetrics(getDefaultMetrics(defaultStats));
-          }
-          
+          const guestStats = await loadGuestUserData();
+          setStats(guestStats || getDefaultStats());
+          setMetrics(getDefaultMetrics(guestStats));
           setStatsLoading(false);
+          setProfile({
+            id: user.id,
+            display_name: user.display_name || 'Guest User',
+            avatar_url: user.avatar_url || '',
+            email: 'guest@example.com',
+            created_at: new Date().toISOString(),
+            avatar_image_url: user.avatar_url || 'https://api.dicebear.com/6.x/adventurer/svg?seed=' + user.id
+          });
+          setSettings({
+            theme: 'light',
+            sound_enabled: true,
+            notification_enabled: false,
+            distance_unit: 'km',
+            language: 'en'
+          });
+          setBadgeEvaluations([]);
+          setBadgesLoading(false);
+          setAvatars([]);
+          setAvatarsLoading(false);
+          setSettingsLoading(false);
         } else {
-          // For regular users, use Supabase as before
-          setStatsLoading(true);
-          const userStats = await fetchUserStats(user.id);
+          const [userProfile, userStats, userSettings, allAvatars] = await Promise.all([
+            fetchUserProfile(user.id),
+            fetchUserStats(user.id),
+            fetchUserSettings(user.id),
+            fetchAvatars()
+          ]);
+          setProfile(userProfile);
           setStats(userStats);
-          setStatsLoading(false);
-          
-          // Use userStats as metrics for badge evaluation
-          setBadgesLoading(true);
+          setSettings(userSettings);
+          setAvatars(allAvatars);
           const userMetrics = getDefaultMetrics(userStats);
           setMetrics(userMetrics);
-          
-          // Evaluate badges based on metrics
           const evaluations = await evaluateUserBadges(user.id, userMetrics);
           setBadgeEvaluations(evaluations);
           setBadgesLoading(false);
+          setAvatarsLoading(false);
         }
-        
-        // For all users, fetch settings and avatars
-        setSettingsLoading(true);
-        const userSettings = await fetchUserSettings(user.id);
-        setSettings(userSettings);
-        setSettingsLoading(false);
-        
-        // Fetch available avatars
-        setAvatarsLoading(true);
-        const allAvatars = await fetchAvatars();
-        setAvatars(allAvatars);
-        setAvatarsLoading(false);
       } catch (error) {
         console.error('Error fetching profile data:', error);
+        setStats(getDefaultStats());
+        setMetrics(getDefaultMetrics());
       } finally {
         setIsLoading(false);
+        setStatsLoading(false);
+        setSettingsLoading(false);
+        setBadgesLoading(false);
+        setAvatarsLoading(false);
       }
     };
-    
     fetchProfileData();
-  }, [user]);
+  }, [user, loadGuestUserData]);
   
   // Helper functions to generate default stats/metrics (moved from profileService.ts for cleaner access)
   const getDefaultStats = (): UserStats => ({

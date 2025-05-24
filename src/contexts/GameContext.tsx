@@ -39,6 +39,8 @@ export interface GameImage {
 
 // Define the context state shape
 interface GameContextState {
+  // ... existing properties ...
+  refreshGlobalMetrics: () => Promise<void>; // Add this line
   roomId: string | null;
   images: GameImage[];
   roundResults: RoundResult[]; // Store results for each round
@@ -187,13 +189,27 @@ export const GameProvider: React.FC<GameProviderProps> = ({ children }) => {
           
           if (storedMetricsJson) {
             const storedMetrics = JSON.parse(storedMetricsJson);
-            setGlobalAccuracy(storedMetrics.overall_accuracy || 0);
-            setGlobalXP(storedMetrics.xp_total || 0);
+            console.log('Found guest metrics in localStorage:', storedMetrics);
+            setGlobalAccuracy(() => storedMetrics.overall_accuracy || 0);
+            setGlobalXP(() => storedMetrics.xp_total || 0);
+            console.log('Updated global metrics for guest user. XP:', storedMetrics.xp_total, 'Accuracy:', storedMetrics.overall_accuracy);
             return; // Exit early if we found guest metrics
           } else {
             // Initialize metrics for new guest users
-            setGlobalAccuracy(0);
-            setGlobalXP(0);
+            console.log('No metrics found for guest user, setting to 0');
+            setGlobalAccuracy(() => 0);
+            setGlobalXP(() => 0);
+            
+            // Create initial metrics for the guest user
+            const initialMetrics = {
+              user_id: guestUser.id,
+              xp_total: 0,
+              overall_accuracy: 0,
+              games_played: 0,
+              updated_at: new Date().toISOString()
+            };
+            localStorage.setItem(storageKey, JSON.stringify(initialMetrics));
+            console.log('Initialized metrics for guest user:', initialMetrics);
             return; // Exit early
           }
         } catch (e) {
@@ -207,14 +223,13 @@ export const GameProvider: React.FC<GameProviderProps> = ({ children }) => {
       
       if (!user) {
         console.log('No user found, setting global metrics to 0');
-        // For guest users, use localStorage or set to 0
-        // Initialize with zeros instead of warning
-        setGlobalAccuracy(0);
-        setGlobalXP(0);
+        // Initialize with zeros
+        setGlobalAccuracy(() => 0);
+        setGlobalXP(() => 0);
         return;
       }
       
-      console.log('Fetching metrics for user:', user.id);
+      console.log('Fetching metrics for registered user:', user.id);
       // For authenticated users, fetch from Supabase
       const { data: metrics, error: fetchError } = await supabase
         .from('user_metrics')
@@ -225,9 +240,9 @@ export const GameProvider: React.FC<GameProviderProps> = ({ children }) => {
       if (fetchError) {
         // Handle case where user exists but has no metrics yet
         if (fetchError.code === 'PGRST116') { // Not found error
-          console.log('No metrics found for user, setting to 0');
-          setGlobalAccuracy(0);
-          setGlobalXP(0);
+          console.log('No metrics found for registered user, setting to 0');
+          setGlobalAccuracy(() => 0);
+          setGlobalXP(() => 0);
         } else {
           console.error('Error fetching user metrics:', fetchError);
         }
@@ -235,19 +250,20 @@ export const GameProvider: React.FC<GameProviderProps> = ({ children }) => {
       }
       
       if (metrics) {
-        console.log('Found metrics:', metrics);
-        setGlobalAccuracy(metrics.overall_accuracy || 0);
-        setGlobalXP(metrics.xp_total || 0);
+        console.log('Found metrics for registered user:', metrics);
+        setGlobalAccuracy(() => metrics.overall_accuracy || 0);
+        setGlobalXP(() => metrics.xp_total || 0);
+        console.log('Updated global metrics for registered user. XP:', metrics.xp_total, 'Accuracy:', metrics.overall_accuracy);
       } else {
-        console.log('No metrics data returned');
-        setGlobalAccuracy(0);
-        setGlobalXP(0);
+        console.log('No metrics data returned for registered user');
+        setGlobalAccuracy(() => 0);
+        setGlobalXP(() => 0);
       }
     } catch (err) {
       console.error('Error in fetchGlobalMetrics:', err);
       // Set defaults on error
-      setGlobalAccuracy(0);
-      setGlobalXP(0);
+      setGlobalAccuracy(() => 0);
+      setGlobalXP(() => 0);
     }
   }, []);
 
@@ -296,6 +312,11 @@ export const GameProvider: React.FC<GameProviderProps> = ({ children }) => {
     
   }, [roundResults]);
   
+  // Add a refreshGlobalMetrics function to force a metrics refresh
+  const refreshGlobalMetrics = useCallback(async () => {
+    await fetchGlobalMetrics();
+  }, [fetchGlobalMetrics]);
+
   // Fetch global metrics on initial load
   useEffect(() => {
     fetchGlobalMetrics();
@@ -501,7 +522,8 @@ export const GameProvider: React.FC<GameProviderProps> = ({ children }) => {
     startGame,
     recordRoundResult,
     resetGame,
-    fetchGlobalMetrics
+    fetchGlobalMetrics,
+    refreshGlobalMetrics // Add this line
   };
 
   return <GameContext.Provider value={value}>{children}</GameContext.Provider>;
