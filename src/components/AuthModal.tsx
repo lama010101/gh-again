@@ -34,20 +34,28 @@ export function AuthModal({
   const [activeTab, setActiveTab] = useState<"signIn" | "signUp">("signIn");
 
   const handleGuestLogin = async () => {
-    if (onGuestContinue) {
-      onGuestContinue();
-      return;
-    }
-    
-    // Fallback to default behavior if no onGuestContinue provided
     try {
       console.log("Starting guest login from modal");
       setIsLoading(true);
+      
+      // If there's a custom guest continue handler, use it
+      if (onGuestContinue) {
+        await onGuestContinue();
+        onClose();
+        return;
+      }
+      
+      // Fallback to default behavior if no onGuestContinue provided
       const guestUser = await continueAsGuest();
       console.log("Guest login successful:", guestUser);
+      
+      // Close the modal first
       onClose();
-      // Navigate to home after successful login
-      window.location.href = '/test';
+      
+      // Then navigate to home after a small delay to ensure the modal is closed
+      setTimeout(() => {
+        window.location.href = '/';
+      }, 100);
     } catch (error) {
       console.error("Guest login error:", error);
       toast({

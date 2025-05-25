@@ -22,6 +22,7 @@ export interface RoundResult {
   xpWhere?: number; // Location XP (0-100)
   xpWhen?: number; // Time XP (0-100)
   accuracy?: number; // Overall accuracy percentage for the round (0-100)
+  hintsUsed?: number; // Number of hints used in this round
 }
 
 // Define the structure of an image object based on actual schema

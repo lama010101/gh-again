@@ -117,11 +117,11 @@ const App = () => {
                 <Toaster />
                 <Sonner />
                 <ConsoleLogger />
-                <GlobalXPLogger />
                 <LogWindowModal />
                 <BrowserRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
                   <AuthRedirectHandler />
                   <GameProvider>
+                    <GlobalXPLogger />
                     <Routes>
                       <Route path="/test" element={<TestLayout />}>
                         <Route index element={<HomePage />} />

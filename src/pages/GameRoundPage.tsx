@@ -14,7 +14,6 @@ import {
 } from "@/components/ui/tooltip";
 import { ConfirmNavigationDialog } from '@/components/game/ConfirmNavigationDialog';
 import { useHint } from '@/hooks/useHint';
-import { calculateRoundScore as calculateHintPenalty } from '@/utils/scoring';
 import { 
   calculateDistanceKm, 
   calculateRoundScore, 
@@ -82,13 +81,7 @@ const GameRoundPage = () => {
       : null;
   
   // Extract hints used from the useHint hook
-  const { hintsUsedThisRound = 0 } = useHint(imageForRound ? {
-    location_name: imageForRound.location_name,
-    gps: { lat: imageForRound.latitude, lng: imageForRound.longitude },
-    year: imageForRound.year,
-    title: imageForRound.title,
-    description: imageForRound.description
-  } : null) || {};
+  const { hintsUsedThisRound = 0 } = useHint(imageForRound || null) || {};
 
   // Handle guess submission
   const handleSubmitGuess = useCallback(() => {
@@ -129,17 +122,12 @@ const GameRoundPage = () => {
         : null;
 
       // Calculate base scores using the standardized system
-      const { timeXP = 0, locationXP = 0, roundXP: baseRoundXP = 0, roundPercent = 0 } = distance !== null 
+      const { timeXP = 0, locationXP = 0, roundXP: finalScore = 0, roundPercent = 0 } = distance !== null 
         ? calculateRoundScore(distance, selectedYear, imageForRound.year) 
         : { timeXP: 0, locationXP: 0, roundXP: 0, roundPercent: 0 };
       
-      // Ensure we have valid numbers for the final score calculation
-      const safeRoundXP = Number.isFinite(baseRoundXP) ? baseRoundXP : 0;
-      
-      // Apply hint penalties to the score (10% per hint used)
-      const finalScore = calculateHintPenalty(safeRoundXP, hintsUsedThisRound);
-
-      console.log(`Distance: ${distance?.toFixed(2) ?? 'N/A'} km, Location XP: ${locationXP.toFixed(1)}, Time XP: ${timeXP.toFixed(1)}, Round XP: ${baseRoundXP.toFixed(1)}, Hints Used: ${hintsUsedThisRound}, Final Score: ${finalScore}`);
+      // Log the raw score (hint penalties will be applied later in FinalResultsPage)
+      console.log(`Distance: ${distance?.toFixed(2) ?? 'N/A'} km, Location XP: ${locationXP.toFixed(1)}, Time XP: ${timeXP.toFixed(1)}, Round XP: ${finalScore.toFixed(1)}, Hints Used: ${hintsUsedThisRound}`);
 
       recordRoundResult(
         {
@@ -149,7 +137,8 @@ const GameRoundPage = () => {
           guessYear: selectedYear,
           xpWhere: locationXP,
           xpWhen: timeXP,
-          accuracy: roundPercent
+          accuracy: roundPercent,
+          hintsUsed: hintsUsedThisRound
         },
         currentRoundIndex
       );
@@ -198,7 +187,9 @@ const GameRoundPage = () => {
             guessYear: selectedYear,
             xpWhere: 0,
             xpWhen: 0,
-            accuracy: 0
+            accuracy: 0,
+            hintsUsed: hintsUsedThisRound
+          
           },
           currentRoundIndex
         );
@@ -232,18 +223,17 @@ const GameRoundPage = () => {
         // Ensure we have valid numbers for the final score calculation
         const safeRoundXP = Number.isFinite(baseRoundXP) ? baseRoundXP : 0;
         
-        // Apply hint penalties to the score (10% per hint used)
-        const finalScore = calculateHintPenalty(safeRoundXP, hintsUsedThisRound);
-
+        // Use the base round XP - hint penalties will be applied in FinalResultsPage
         recordRoundResult(
           {
             guessCoordinates: currentGuess,
             distanceKm: distance,
-            score: finalScore,
+            score: safeRoundXP, // Use the raw score, hint penalties will be applied later
             guessYear: selectedYear,
             xpWhere: locationXP,
             xpWhen: timeXP,
-            accuracy: roundPercent
+            accuracy: roundPercent,
+            hintsUsed: hintsUsedThisRound // Track hints used for penalty calculation in FinalResultsPage
           },
           currentRoundIndex
         );
@@ -266,7 +256,7 @@ const GameRoundPage = () => {
       console.error("Error recording timeout result:", error);
       setIsSubmitting(false);
     }
-  }, [imageForRound, selectedYear, currentRoundIndex, recordRoundResult, toast, navigate, roomId, roundNumber, hasGuessedLocation, currentGuess, hintsUsedThisRound, calculateDistanceKm, calculateRoundScore, calculateHintPenalty]);
+  }, [imageForRound, selectedYear, currentRoundIndex, recordRoundResult, toast, navigate, roomId, roundNumber, hasGuessedLocation, currentGuess, hintsUsedThisRound, calculateDistanceKm, calculateRoundScore]);
 
   // Reset timer and guess state when round changes
   useEffect(() => {

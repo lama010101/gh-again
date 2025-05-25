@@ -36,10 +36,10 @@ export const calculateDistanceKm = (lat1: number, lng1: number, lat2: number, ln
  * @returns XP earned for time accuracy (0-100)
  */
 export const calculateTimeXP = (guessedYear: number, actualYear: number): number => {
-  return Math.max(
+  return Math.round(Math.max(
     0,
     (1 - Math.min(Math.abs(guessedYear - actualYear), MAX_TIME_DIFF) / MAX_TIME_DIFF) * MAX_XP_TIME
-  );
+  ));
 };
 
 /**
@@ -48,10 +48,10 @@ export const calculateTimeXP = (guessedYear: number, actualYear: number): number
  * @returns XP earned for location accuracy (0-100)
  */
 export const calculateLocationXP = (distanceKm: number): number => {
-  return Math.max(
+  return Math.round(Math.max(
     0,
     (1 - Math.min(distanceKm, MAX_DIST_KM) / MAX_DIST_KM) * MAX_XP_LOC
-  );
+  ));
 };
 
 /**
@@ -112,9 +112,9 @@ export const calculateRoundScore = (distanceKm: number, guessedYear: number, act
   const timeXP = calculateTimeXP(guessedYear, actualYear);
   const locationXP = calculateLocationXP(distanceKm);
   
-  // Combined per-round values
-  const roundXP = timeXP + locationXP; // 0-200
-  const roundPercent = (roundXP / (MAX_XP_TIME + MAX_XP_LOC)) * 100; // 0-100%
+  // Combined per-round values with rounding
+  const roundXP = Math.round(timeXP + locationXP); // 0-200
+  const roundPercent = Math.round((roundXP / (MAX_XP_TIME + MAX_XP_LOC)) * 100); // 0-100%
   
   return {
     timeXP,
@@ -136,12 +136,12 @@ export const calculateFinalScore = (roundScores: Array<{
   finalXP: number;
   finalPercent: number;
 } => {
-  // Sum up all round XP values
-  const finalXP = roundScores.reduce((sum, round) => sum + round.roundXP, 0);
+  // Sum up all round XP values and round to nearest integer
+  const finalXP = Math.round(roundScores.reduce((sum, round) => sum + round.roundXP, 0));
   
-  // Average of all round percentages
+  // Average of all round percentages and round to nearest integer
   const finalPercent = roundScores.length > 0 ?
-    roundScores.reduce((sum, round) => sum + round.roundPercent, 0) / roundScores.length :
+    Math.round(roundScores.reduce((sum, round) => sum + round.roundPercent, 0) / roundScores.length) :
     0;
     
   console.log('[GameCalculations] Final Score:', {

@@ -174,17 +174,15 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
 
       // Generate a simple display name - would normally come from a pool of names or DB
       const randomName = `Guest${Math.floor(Math.random() * 10000)}`;
-
-      // In a real app, you might fetch a random avatar from your database
-      // or use a service like DiceBear to generate one
       const displayName = randomName;
 
       // Create guest user object
       const guestUser: GuestUser = {
-        id: uuidv4(),
+        id: `guest_${uuidv4()}`,
         type: 'guest',
         isGuest: true,
         display_name: displayName,
+        avatar_url: `https://api.dicebear.com/6.x/adventurer/svg?seed=${randomName}`
       };
 
       // Save to localStorage
@@ -195,6 +193,9 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
       setUser(guestUser);
       setIsGuest(true);
 
+      // Add a small delay to ensure state updates are processed
+      await new Promise(resolve => setTimeout(resolve, 100));
+      
       return guestUser;
     } catch (error) {
       console.error("Error creating guest user", error);

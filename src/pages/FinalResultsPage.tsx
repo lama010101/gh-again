@@ -46,22 +46,38 @@ const FinalResultsPage = () => {
 
       console.log('Processing game results to update user metrics...');
 
-      // Calculate final score and percentage
+      // Calculate raw XP and percentage for each round
       const roundScores = roundResults.map((result, index) => {
         const img = images[index];
         if (!result || !img) return { roundXP: 0, roundPercent: 0 };
         
         const locationXP = calculateLocationAccuracy(result.distanceKm || 0);
         const timeXP = calculateTimeAccuracy(result.guessYear || 0, img.year || 0);
+        const roundXP = locationXP + timeXP;
+        const roundPercent = (roundXP / 200) * 100; // 200 is the max XP per round
         
-        return {
-          roundXP: locationXP + timeXP,
-          roundPercent: ((locationXP + timeXP) / 200) * 100
-        };
+        console.log(`Round ${index + 1} - Location XP: ${locationXP}, Time XP: ${timeXP}, Total Raw XP: ${roundXP}, Hints Used: ${result.hintsUsed || 0}`);
+        
+        return { roundXP, roundPercent };
       });
-      
+
+      // Sum up XP from all rounds
       const { finalXP, finalPercent } = calculateFinalScore(roundScores);
-      console.log('Final game score:', { finalXP, finalPercent });
+      
+      // Calculate total hints used and apply penalty (30 XP per hint)
+      const HINT_PENALTY = 30;
+      const totalHintsUsed = roundResults.reduce((sum, result) => sum + (result.hintsUsed || 0), 0);
+      const totalHintPenalty = totalHintsUsed * HINT_PENALTY;
+      const netFinalXP = Math.max(0, Math.round(finalXP - totalHintPenalty));
+      
+      console.log('Final Score Calculation:', {
+        totalRounds: roundResults.length,
+        rawTotalXP: finalXP,
+        totalHintsUsed,
+        totalHintPenalty,
+        netFinalXP,
+        finalPercent
+      });
       
       // Check if this was a perfect game
       const isPerfectGame = finalPercent === 100;
@@ -86,17 +102,23 @@ const FinalResultsPage = () => {
       // Get current user (may be guest or registered)
       const { data: { user } } = await supabase.auth.getUser();
 
-      // Prepare metrics update
+      // Prepare metrics update with final XP (after hint penalties)
       const metricsUpdate = {
         gameAccuracy: finalPercent,
-        gameXP: finalXP,
+        gameXP: netFinalXP, // This is the final XP after hint penalties
         isPerfectGame,
         locationAccuracy: avgLocationAccuracy,
         timeAccuracy: avgTimeAccuracy,
         yearBullseye,
         locationBullseye
       };
-      console.log('Metrics to update:', metricsUpdate);
+      
+      console.log('Updating user metrics with:', {
+        ...metricsUpdate,
+        // Log the raw values for debugging
+        rawXP: finalXP,
+        hintPenalty: totalHintPenalty
+      });
 
       // Always call updateUserMetrics for both guest and registered users
       const userId = user?.id || (JSON.parse(localStorage.getItem('guestSession') || '{}').id);
