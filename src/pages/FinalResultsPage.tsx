@@ -29,7 +29,8 @@ const FinalResultsPage = () => {
     fetchGlobalMetrics,
     refreshGlobalMetrics,
     globalXP = 0,
-    globalAccuracy = 0
+    globalAccuracy = 0,
+    gameId // Get gameId from context
   } = useGame();
   
   // Update user metrics and fetch global scores when the final results page is loaded
@@ -99,13 +100,47 @@ const FinalResultsPage = () => {
 
       // Always call updateUserMetrics for both guest and registered users
       const userId = user?.id || (JSON.parse(localStorage.getItem('guestSession') || '{}').id);
+      // Update user metrics and then refresh global metrics to ensure navbar is up to date
+      console.log('[FinalResultsPage] Calling updateUserMetrics with:', {
+        userId,
+        metrics: metricsUpdate,
+        timestamp: new Date().toISOString()
+      });
+      
+      const metricsUpdated = await updateUserMetrics(userId, metricsUpdate, gameId);
+      console.log(`[FinalResultsPage] [GameID: ${gameId || 'N/A'}] updateUserMetrics called with:`, {
+        userId,
+        metrics: metricsUpdate,
+        gameId,
+        timestamp: new Date().toISOString()
+      });
+      console.log('[FinalResultsPage] updateUserMetrics result:', {
+        success: metricsUpdated,
+        userId,
+        timestamp: new Date().toISOString()
+      });
+      
+      console.log(`[FinalResultsPage] [GameID: ${gameId || 'N/A'}] updateUserMetrics result:`, {
+        success: metricsUpdated,
+        userId,
+        gameId,
+        timestamp: new Date().toISOString()
+      });
+
+      if (metricsUpdated) {
+        console.log('[FinalResultsPage] Refreshing global metrics...');
+        await refreshGlobalMetrics();
+        console.log('[FinalResultsPage] Global metrics refreshed');
+      }
       if (!userId) {
         console.error('No user ID found for updating metrics');
         return;
       }
       
       try {
-        const updateSuccess = await updateUserMetrics(userId, metricsUpdate);
+        // The updateUserMetrics call is already made above, this is redundant
+        // const updateSuccess = await updateUserMetrics(userId, metricsUpdate, gameId);
+        const updateSuccess = metricsUpdated; // Use the result from the call above
         if (updateSuccess) {
           console.log('Successfully updated user metrics');
           

@@ -7,7 +7,7 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { ThemeProvider } from "next-themes";
 import { AuthProvider, useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
-import { GameProvider } from "@/contexts/GameContext";
+import { GameProvider, useGame } from "@/contexts/GameContext"; // Added useGame
 import { LogProvider, useConsoleLogging } from "@/contexts/LogContext";
 import { LogWindowModal } from "@/components/LogWindowModal";
 
@@ -79,6 +79,20 @@ const AuthRedirectHandler = () => {
   return null;
 };
 
+// Component to log global XP changes
+const GlobalXPLogger = () => {
+  const { globalXP } = useGame();
+
+  useEffect(() => {
+    console.log('[App.tsx] Global XP state changed:', { 
+      globalXP,
+      timestamp: new Date().toISOString()
+    });
+  }, [globalXP]);
+
+  return null; // This component doesn't render anything
+};
+
 // Component to set up console logging
 const ConsoleLogger = () => {
   useConsoleLogging();
@@ -103,6 +117,7 @@ const App = () => {
                 <Toaster />
                 <Sonner />
                 <ConsoleLogger />
+                <GlobalXPLogger />
                 <LogWindowModal />
                 <BrowserRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
                   <AuthRedirectHandler />

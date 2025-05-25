@@ -143,6 +143,16 @@ export const calculateFinalScore = (roundScores: Array<{
   const finalPercent = roundScores.length > 0 ?
     roundScores.reduce((sum, round) => sum + round.roundPercent, 0) / roundScores.length :
     0;
+    
+  console.log('[GameCalculations] Final Score:', {
+    roundScores: roundScores.map((r, i) => ({
+      round: i + 1,
+      roundXP: r.roundXP,
+      roundPercent: r.roundPercent
+    })),
+    finalXP,
+    finalPercent
+  });
   
   return {
     finalXP,
