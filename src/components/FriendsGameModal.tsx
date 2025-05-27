@@ -100,6 +100,8 @@ const FriendsGameModal: React.FC<FriendsGameModalProps> = ({
       gameId,
     };
     localStorage.setItem('friendsGameSettings', JSON.stringify(settings));
+    // Navigate to the room with the game ID
+    window.location.href = `/test/room?id=${gameId}`;
     onStartGame({ timerSeconds, hintsPerGame });
   };
 
