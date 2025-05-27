@@ -81,13 +81,16 @@ const AuthRedirectHandler = () => {
 
 // Component to log global XP changes
 const GlobalXPLogger = () => {
-  const { globalXP } = useGame();
+  const gameContext = useGame();
+  const globalXP = gameContext?.globalXP;
 
   useEffect(() => {
-    console.log('[App.tsx] Global XP state changed:', { 
-      globalXP,
-      timestamp: new Date().toISOString()
-    });
+    if (globalXP !== undefined) {
+      console.log('[App.tsx] Global XP state changed:', { 
+        globalXP,
+        timestamp: new Date().toISOString()
+      });
+    }
   }, [globalXP]);
 
   return null; // This component doesn't render anything
@@ -106,8 +109,7 @@ const App = () => {
     <React.StrictMode>
       <ThemeProvider 
         attribute="class" 
-        defaultTheme="light" 
-        enableSystem={false}
+        enableSystem
         disableTransitionOnChange
       >
         <QueryClientProvider client={queryClient}>

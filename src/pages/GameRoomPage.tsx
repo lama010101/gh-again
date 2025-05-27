@@ -1,98 +1,78 @@
-import { useState, useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
-import { supabase } from "@/integrations/supabase/client";
+import { useAuth } from "@/contexts/AuthContext";
+import { useGame } from "@/contexts/GameContext";
 import { useToast } from "@/components/ui/use-toast";
 import { Button } from "@/components/ui/button";
-import { Slider } from "@/components/ui/slider";
+import { Input } from "@/components/ui/input";
+import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import {
   Copy,
   Check,
   Crown,
   AlertCircle,
-  Loader2
+  Loader2,
+  UsersRound
 } from "lucide-react";
-import { useAuth } from "@/contexts/AuthContext";
-
-interface RoomSettings {
-  timerEnabled: boolean;
-  timerSeconds: number;
-  hintsPerGame: number;
-}
-
-interface Player {
-  id: string;
-  name: string;
-  avatar: string;
-  isReady: boolean;
-  isHost: boolean;
-}
+import { supabase } from "@/integrations/supabase/client";
 
 const GameRoomPage = () => {
   const [searchParams] = useSearchParams();
   const gameId = searchParams.get('id');
-  const invitedFriendId = searchParams.get('invite');
   const { user, continueAsGuest } = useAuth();
-  
-  const [settings, setSettings] = useState<RoomSettings>({
-    timerEnabled: true,
-    timerSeconds: 60,
-    hintsPerGame: 3
-  });
-  
-  const [players, setPlayers] = useState<Player[]>([]);
+  const gameContext = useGame();
+  const { startGame } = gameContext || {};
+  const [isLoading, setIsLoading] = useState(true);
+  const [gameIdInput, setGameIdInput] = useState('');
   const [copied, setCopied] = useState(false);
-  const [countdown, setCountdown] = useState<number | null>(null);
-  
   const navigate = useNavigate();
   const { toast } = useToast();
-  const [isLoading, setIsLoading] = useState(true);
 
-  // Load saved settings when component mounts
+  // Handle direct game link access
   useEffect(() => {
-    const savedSettings = localStorage.getItem('friendsGameSettings');
-    if (savedSettings) {
+    const initializeGame = async () => {
       try {
-        const parsed = JSON.parse(savedSettings);
-        setSettings({
-          timerEnabled: parsed.timerEnabled ?? true,
-          timerSeconds: parsed.timerSeconds ?? 60,
-          hintsPerGame: parsed.hintsPerGame ?? 3
+        if (!gameId) {
+          setIsLoading(false);
+          return;
+        }
+        
+        // If user is not signed in, sign them in as guest
+        if (!user) {
+          await continueAsGuest();
+        }
+        
+        // Load saved settings
+        const savedSettings = localStorage.getItem('friendsGameSettings') || '{}';
+        const settings = JSON.parse(savedSettings);
+        
+        // Store settings in localStorage
+        localStorage.setItem('gameSettings', JSON.stringify({
+          timerEnabled: settings.timerEnabled ?? true,
+          timerSeconds: settings.timerSeconds ?? 60,
+          hintsPerGame: settings.hintsPerGame ?? 3,
+          gameId: gameId
+        }));
+        
+        // Force a hard navigation to ensure we get to the game
+        window.location.href = `/test/game?mode=multi&id=${gameId}`;
+        
+      } catch (error) {
+        console.error('Error initializing game:', error);
+        toast({
+          title: "Error joining game",
+          description: "There was an issue joining the game. Please try again.",
+          variant: "destructive"
         });
-      } catch (e) {
-        console.error('Error parsing saved settings:', e);
+        setIsLoading(false);
       }
-    }
-    
-    // Initialize with current user as host
-    if (user) {
-      const displayName = user.type === 'guest' 
-        ? user.display_name 
-        : user.email?.split('@')[0] || 'Player';
-      
-      const avatarUrl = user.type === 'guest' 
-        ? user.avatar_url || '/default-avatar.png'
-        : `https://ui-avatars.com/api/?name=${encodeURIComponent(displayName)}`;
-      
-      setPlayers([{
-        id: user.id,
-        name: displayName,
-        avatar: avatarUrl,
-        isReady: false,
-        isHost: true
-      }]);
-    }
-    
-    // If this is an invitation, show a toast
-    if (invitedFriendId) {
-      toast({
-        title: "Game Invitation",
-        description: "You've been invited to join this game!",
-        variant: "default"
-      });
-    }
-  }, [user, invitedFriendId, toast]);
+    };
 
-  const shareRoom = async () => {
+    initializeGame();
+  }, [gameId, user, continueAsGuest, toast]);
+
+  // Copy game link to clipboard
+  const copyGameLink = async () => {
     if (!gameId) return;
     
     const url = `${window.location.origin}/test/room?id=${gameId}`;
@@ -118,92 +98,51 @@ const GameRoomPage = () => {
       });
     }
   };
-  
-  const toggleReady = () => { /* ... */ };
-  
-  const checkAllReady = (): boolean => {
-    return players.length > 0 && players.every(p => p.isReady);
-  };
-  
-  const beginCountdown = (): void => {
-    if (!checkAllReady()) return;
-    
-    let count = 5;
-    setCountdown(count);
-    
-    const timer = setInterval(() => {
-      count--;
-      setCountdown(count);
-      
-      if (count <= 0) {
-        clearInterval(timer);
-        startGame();
-      }
-    }, 1000);
-  };
-  
-  const startGame = async () => {
-    try {
-      if (!gameId) throw new Error('Missing game ID');
-      // Update navigation to use dynamic routes if multiplayer uses the same flow
-      // If multiplayer is different, keep this or adjust as needed.
-      navigate(`/test/game?mode=multi&id=${gameId}`); // Keep /test for now
-    } catch (error) { /* ... */ }
-  };
-  
-  const updateTimerSetting = (value: number[]) => { /* ... */ };
-  const updateHintSetting = (value: number[]) => { /* ... */ };
-  
-  const initializeGame = async () => {
-    try {
-      if (!gameId) return;
-      
-      // If user is not signed in, sign them in as guest
-      if (!user) {
-        await continueAsGuest();
-      }
-      
-      // Load saved settings
-      const savedSettings = localStorage.getItem('friendsGameSettings') || '{}';
-      const settings = JSON.parse(savedSettings);
-      
-      // Navigate directly to the game - use window.location for a full page reload to avoid router issues
-      // Store settings in localStorage first
-      localStorage.setItem('gameSettings', JSON.stringify({
-        timerEnabled: settings.timerEnabled ?? true,
-        timerSeconds: settings.timerSeconds ?? 60,
-        hintsPerGame: settings.hintsPerGame ?? 3,
-        gameId: gameId
-      }));
-      
-      // Force a hard navigation to ensure we get to the game
-      window.location.href = `/test/game?mode=multi&id=${gameId}`;
-      
-    } catch (error) {
-      console.error('Error initializing game:', error);
+
+  // Handle joining a game with ID
+  const handleJoinGame = () => {
+    if (!gameIdInput.trim()) {
       toast({
-        title: "Error joining game",
-        description: "There was an issue joining the game. Please try again.",
+        title: "Game ID required",
+        description: "Please enter a valid game ID to join.",
         variant: "destructive"
       });
-    } finally {
-      setIsLoading(false);
+      return;
     }
+    
+    navigate(`/test/room?id=${gameIdInput}`);
   };
 
-  useEffect(() => {
-    initializeGame();
-  }, [gameId, user, continueAsGuest, navigate, toast]);
+  // Return home button
+  const goHome = () => {
+    navigate('/test');
+  };
 
   if (!gameId) {
+    // No game ID - show join game form
     return (
       <div className="flex flex-col items-center justify-center min-h-screen bg-gray-100 p-4">
-        <AlertCircle className="h-12 w-12 text-red-500 mb-4" />
-        <h2 className="text-2xl font-bold text-gray-800 mb-2">Game Not Found</h2>
-        <p className="text-gray-600 mb-6">The game link is invalid or has expired.</p>
-        <Button onClick={() => navigate('/test')}>
-          Return to Home
-        </Button>
+        <Card className="w-full max-w-md">
+          <CardHeader>
+            <CardTitle className="text-center">Join a Game</CardTitle>
+            <CardDescription className="text-center">Enter a game ID to join</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="flex flex-col space-y-4">
+              <Input 
+                placeholder="Enter game ID" 
+                value={gameIdInput} 
+                onChange={(e) => setGameIdInput(e.target.value)} 
+              />
+              <Button onClick={handleJoinGame} className="w-full">
+                Join Game
+              </Button>
+              <Button variant="outline" onClick={goHome} className="w-full">
+                Return Home
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
       </div>
     );
   }
@@ -212,7 +151,7 @@ const GameRoomPage = () => {
     return (
       <div className="flex flex-col items-center justify-center min-h-screen bg-gray-100 p-4">
         <Loader2 className="h-12 w-12 text-blue-500 animate-spin mb-4" />
-        <p className="text-gray-600">Joining game...</p>
+        <p className="text-gray-600">Loading game room...</p>
       </div>
     );
   }
@@ -221,7 +160,7 @@ const GameRoomPage = () => {
   return (
     <div className="flex flex-col items-center justify-center min-h-screen bg-gray-100 p-4">
       <Loader2 className="h-12 w-12 text-blue-500 animate-spin mb-4" />
-      <p className="text-gray-600">Redirecting to game...</p>
+      <p className="text-gray-600">Loading game room...</p>
     </div>
   );
 };

@@ -56,16 +56,20 @@ const GameRoundPage = () => {
     }
   }, [pendingNavigation]);
 
+  const gameContext = useGame();
+  
+  // Safely destructure with defaults to prevent undefined errors
   const {
-    images,
-    isLoading: isContextLoading,
-    error: contextError,
-    roomId: contextRoomId,
-    recordRoundResult,
-    roundTimerSec,
-    totalGameAccuracy,
-    totalGameXP
-  } = useGame();
+    images = [],
+    isLoading: isContextLoading = true,
+    error: contextError = null,
+    roomId: contextRoomId = '',
+    recordRoundResult = () => {},
+    roundTimerSec = 0,
+    totalGameAccuracy = 0,
+    totalGameXP = 0,
+    globalXP = 0 // Add default value for globalXP
+  } = gameContext || {};
   const { toast } = useToast();
 
   const roundNumber = parseInt(roundNumberStr || '1', 10);

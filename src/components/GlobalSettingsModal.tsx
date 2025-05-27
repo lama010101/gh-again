@@ -19,9 +19,7 @@ interface GameSettings {
 
 const GlobalSettingsModal: React.FC<GlobalSettingsModalProps> = ({ isOpen, onClose }) => {
   const [hintsPerGame, setHintsPerGame] = React.useState(3);
-  const [timerEnabled, setTimerEnabled] = React.useState(true);
-  const [timerSeconds, setTimerSeconds] = React.useState(60); // 1 min
-  const [initialState, setInitialState] = React.useState({ hintsPerGame: 3, timerEnabled: true, timerSeconds: 60 });
+  const [initialState, setInitialState] = React.useState({ hintsPerGame: 3 });
 
   React.useEffect(() => {
     if (isOpen) {
@@ -30,42 +28,28 @@ const GlobalSettingsModal: React.FC<GlobalSettingsModalProps> = ({ isOpen, onClo
         try {
           const parsed = JSON.parse(saved);
           setHintsPerGame(parsed.hintsPerGame ?? 3);
-          setTimerEnabled(parsed.timerEnabled ?? true);
-          setTimerSeconds(parsed.timerSeconds ?? 60);
           setInitialState({
-            hintsPerGame: parsed.hintsPerGame ?? 3,
-            timerEnabled: parsed.timerEnabled ?? true,
-            timerSeconds: parsed.timerSeconds ?? 60,
+            hintsPerGame: parsed.hintsPerGame ?? 3
           });
         } catch {
           setHintsPerGame(3);
-          setTimerEnabled(true);
-          setTimerSeconds(60);
-          setInitialState({ hintsPerGame: 3, timerEnabled: true, timerSeconds: 60 });
+          setInitialState({ hintsPerGame: 3 });
         }
       } else {
         setHintsPerGame(3);
-        setTimerEnabled(true);
-        setTimerSeconds(60);
-        setInitialState({ hintsPerGame: 3, timerEnabled: true, timerSeconds: 60 });
+        setInitialState({ hintsPerGame: 3 });
       }
     }
   }, [isOpen]);
 
-  const timerLabel = timerSeconds < 60 ? `${timerSeconds}s` : `${Math.round(timerSeconds / 60)} min`;
-
   const handleCancel = () => {
     setHintsPerGame(initialState.hintsPerGame);
-    setTimerEnabled(initialState.timerEnabled);
-    setTimerSeconds(initialState.timerSeconds);
     onClose();
   };
 
   const handleSave = () => {
     localStorage.setItem('globalGameSettings', JSON.stringify({
-      hintsPerGame,
-      timerEnabled,
-      timerSeconds,
+      hintsPerGame
     }));
     onClose();
   };
@@ -113,45 +97,7 @@ const GlobalSettingsModal: React.FC<GlobalSettingsModalProps> = ({ isOpen, onClo
               </div>
             </div>
 
-            {/* Round Timer */}
-            <div>
-              <div className="flex items-center justify-between gap-4 mb-2">
-                <div className="flex items-center gap-2">
-                  <span className="text-gray-400 text-base">⏰</span>
-                  <span className="text-sm font-medium text-gray-800 dark:text-gray-200">Round Timer</span>
-                </div>
-                <span className="bg-orange-50 text-orange-600 text-sm px-2 py-1 rounded-md font-semibold whitespace-nowrap ml-2">
-                  {timerEnabled ? timerLabel : 'Off'}
-                </span>
-              </div>
-              <div className="flex items-center gap-3">
-                {/* Timer Toggle */}
-                <button
-                  type="button"
-                  className={`w-10 h-6 ${timerEnabled ? 'bg-orange-500' : 'bg-gray-200 dark:bg-gray-700'} rounded-full flex items-center focus:outline-none transition-colors`}
-                  onClick={() => setTimerEnabled((v) => !v)}
-                  aria-label="Toggle round timer"
-                >
-                  <span
-                    className={`block w-4 h-4 bg-white dark:bg-gray-400 rounded-full shadow transform transition-transform ${timerEnabled ? 'translate-x-4' : 'translate-x-1'}`}
-                  ></span>
-                </button>
-                {/* Timer Slider */}
-                <input
-                  type="range"
-                  min={5}
-                  max={300}
-                  step={5}
-                  value={timerSeconds}
-                  onChange={e => setTimerSeconds(Number(e.target.value))}
-                  className="flex-1 accent-orange-500"
-                  disabled={!timerEnabled}
-                />
-              </div>
-              <div className="flex justify-between text-xs text-gray-400 mt-1">
-                <span>5s</span><span>1m</span><span>3m</span><span>5m</span>
-              </div>
-            </div>
+            {/* Timer settings have been moved to the game settings on the home page */}
 
             {/* Footer Buttons */}
             <div className="flex justify-end gap-2 pt-2">

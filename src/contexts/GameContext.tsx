@@ -404,9 +404,119 @@ export const GameProvider: React.FC<GameProviderProps> = ({ children }) => {
     }
   }, []);
 
+  // Function to join an existing game by ID
+  const joinGame = useCallback(async (existingGameId: string, settings?: { timerSeconds?: number; hintsPerGame?: number }) => {
+    console.log(`Joining existing game with ID: ${existingGameId}`);
+    setIsLoading(true);
+    setError(null);
+    setImages([]); // Clear previous images
+    setRoundResults([]); // Clear previous results
+    
+    applyGameSettings(settings);
+    
+    try {
+      // First, try to get the game data from Supabase
+      console.log(`Fetching game data for game ID: ${existingGameId}`);
+      const { data: gameData, error: gameError } = await supabase
+        .from('games')
+        .select('*')
+        .eq('game_id', existingGameId)
+        .single();
+      
+      if (gameError) {
+        console.error(`Error fetching game with ID ${existingGameId}:`, gameError);
+        throw new Error(`Failed to join game: ${gameError.message}`);
+      }
+      
+      if (!gameData) {
+        throw new Error(`Game with ID ${existingGameId} not found`);
+      }
+      
+      // Set the game ID and room ID
+      setGameId(existingGameId);
+      setRoomId(gameData.room_id);
+      console.log(`Joined game with ID: ${existingGameId}, Room ID: ${gameData.room_id}`);
+      
+      // Fetch the images using the stored image IDs
+      const imageIds = gameData.image_ids;
+      if (!imageIds || !Array.isArray(imageIds) || imageIds.length < 5) {
+        throw new Error('Invalid image data for this game');
+      }
+      
+      console.log(`Fetching ${imageIds.length} images for game ${existingGameId}`);
+      const { data: gameImages, error: imagesError } = await supabase
+        .from('images')
+        .select('id, title, description, latitude, longitude, year, image_url, location_name')
+        .in('id', imageIds);
+      
+      if (imagesError) {
+        console.error("Error fetching game images:", imagesError);
+        throw new Error(`Failed to fetch game images: ${imagesError.message}`);
+      }
+      
+      if (!gameImages || gameImages.length < 5) {
+        throw new Error(`Could not retrieve all images for this game`);
+      }
+      
+      // Sort the images in the same order as the stored image IDs
+      const orderedImages = imageIds.map(id => 
+        gameImages.find(img => img.id === id)
+      ).filter(Boolean) as any[];
+      
+      // Process the images
+      const processedImages = await Promise.all(
+        orderedImages.map(async (img) => {
+          let finalUrl = img.image_url;
+          if (finalUrl && !finalUrl.startsWith('http')) {
+            // Assume image_url is a path in Supabase storage
+            const { data: urlData } = supabase.storage.from('images').getPublicUrl(finalUrl);
+            finalUrl = urlData?.publicUrl || 'placeholder.jpg'; // Use placeholder if URL fails
+          } else if (!finalUrl) {
+              finalUrl = 'placeholder.jpg'; // Use placeholder if image_url is null/empty
+          }
+          
+          return {
+            id: img.id,
+            title: img.title || 'Untitled',
+            description: img.description || 'No description.',
+            latitude: img.latitude || 0,
+            longitude: img.longitude || 0,
+            year: img.year || 0,
+            image_url: img.image_url, // Keep original image_url if needed elsewhere
+            location_name: img.location_name || 'Unknown Location',
+            url: finalUrl // Final processed URL for display
+          } as GameImage;
+        })
+      );
+      
+      setImages(processedImages);
+      console.log(`Loaded ${processedImages.length} images for game ${existingGameId}`);
+      
+      // Set loading to false
+      setIsLoading(false);
+      
+      // Navigate to the first round
+      setTimeout(() => {
+        navigate(`/test/game/room/${gameData.room_id}/round/1`);
+      }, 100);
+      
+    } catch (err) {
+      console.error("Error in joinGame:", err);
+      setError(err instanceof Error ? err.message : 'An unknown error occurred');
+      setIsLoading(false);
+      alert('Failed to join game. Please try again.');
+    }
+  }, [applyGameSettings, navigate]);
+  
   // Function to fetch images and start a new game
-  const startGame = useCallback(async (settings?: { timerSeconds?: number; hintsPerGame?: number }) => {
+  const startGame = useCallback(async (settings?: { timerSeconds?: number; hintsPerGame?: number }, existingGameId?: string) => {
     console.log("Starting new game...");
+    
+    // If an existing game ID is provided, join that game instead
+    if (existingGameId) {
+      return joinGame(existingGameId, settings);
+    }
+    
     clearSavedGameState(); // Clear any existing saved state
     setIsLoading(true);
     setError(null);
@@ -455,6 +565,8 @@ export const GameProvider: React.FC<GameProviderProps> = ({ children }) => {
       const selectedImages = shuffledBatch.slice(0, 5);
       console.log(`Selected 5 images after shuffling.`);
 
+      // Store the selected image IDs to ensure the same images can be used by others
+      const selectedImageIds = selectedImages.map(img => img.id);
 
       // Process the selected 5 images
       const processedImages = await Promise.all(
@@ -481,6 +593,27 @@ export const GameProvider: React.FC<GameProviderProps> = ({ children }) => {
           } as GameImage;
         })
       );
+      
+      // Save the game data to Supabase so others can join the same game
+      console.log(`Saving game data with ID: ${newGameId}`);
+      const { error: saveError } = await supabase.from('games').insert({
+        game_id: newGameId,
+        room_id: newRoomId,
+        image_ids: selectedImageIds,
+        created_at: new Date().toISOString(),
+        settings: {
+          hintsAllowed,
+          roundTimerSec
+        }
+      });
+      
+      if (saveError) {
+        console.error("Error saving game data:", saveError);
+        // Continue anyway - the game can still be played by the current user
+        console.warn("Game will continue but might not be joinable by others.");
+      } else {
+        console.log(`Game data saved successfully with ID: ${newGameId}`);
+      }
 
       setImages(processedImages);
       console.log("Selected 5 images stored in context:", processedImages);
