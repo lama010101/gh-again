@@ -8,7 +8,8 @@ import {
   Copy,
   Check,
   Crown,
-  AlertCircle
+  AlertCircle,
+  Loader2
 } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 
@@ -30,7 +31,7 @@ const GameRoomPage = () => {
   const [searchParams] = useSearchParams();
   const gameId = searchParams.get('id');
   const invitedFriendId = searchParams.get('invite');
-  const { user } = useAuth();
+  const { user, continueAsGuest } = useAuth();
   
   const [settings, setSettings] = useState<RoomSettings>({
     timerEnabled: true,
@@ -44,7 +45,8 @@ const GameRoomPage = () => {
   
   const navigate = useNavigate();
   const { toast } = useToast();
-  
+  const [isLoading, setIsLoading] = useState(true);
+
   // Load saved settings when component mounts
   useEffect(() => {
     const savedSettings = localStorage.getItem('friendsGameSettings');
@@ -152,140 +154,76 @@ const GameRoomPage = () => {
   const updateTimerSetting = (value: number[]) => { /* ... */ };
   const updateHintSetting = (value: number[]) => { /* ... */ };
   
-  if (!gameId) { /* ... Error handling ... */ }
-  
-  return (
-    <div className="min-h-screen bg-gray-100">
-      <div className="container mx-auto px-4 py-8 max-w-4xl">
-        <div className="bg-white rounded-lg shadow-lg overflow-hidden">
-          {/* Header */}
-          <div className="bg-gradient-to-r from-blue-600 to-blue-800 p-6 text-white">
-            <h1 className="text-2xl font-bold">Game Room</h1>
-            <p className="text-blue-100">Share the code below to invite friends</p>
-            
-            <div className="mt-4 flex items-center">
-              <div className="bg-white/20 px-4 py-2 rounded-md font-mono text-lg flex-1">
-                {gameId}
-              </div>
-              <Button 
-                variant="secondary" 
-                size="sm" 
-                className="ml-2"
-                onClick={shareRoom}
-              >
-                {copied ? <Check className="h-4 w-4 mr-2" /> : <Copy className="h-4 w-4 mr-2" />}
-                {copied ? 'Copied!' : 'Copy'}
-              </Button>
-            </div>
-          </div>
-          
-          <div className="p-6">
-            {/* Game Settings */}
-            <div className="mb-8">
-              <h2 className="text-lg font-semibold mb-4">Game Settings</h2>
-              
-              <div className="space-y-6">
-                {/* Timer Setting */}
-                <div>
-                  <div className="flex justify-between items-center mb-2">
-                    <label className="text-sm font-medium text-gray-700">
-                      Round Timer: {settings.timerSeconds} seconds
-                    </label>
-                    <span className="text-sm text-gray-500">
-                      {settings.timerEnabled ? 'On' : 'Off'}
-                    </span>
-                  </div>
-                  <div className="flex items-center space-x-4">
-                    <Slider
-                      value={[settings.timerSeconds]}
-                      onValueChange={updateTimerSetting}
-                      min={30}
-                      max={180}
-                      step={5}
-                      disabled={!settings.timerEnabled}
-                      className="flex-1"
-                    />
-                  </div>
-                </div>
-                
-                {/* Hints Setting */}
-                <div>
-                  <div className="flex justify-between items-center mb-2">
-                    <label className="text-sm font-medium text-gray-700">
-                      Hints per Game: {settings.hintsPerGame}
-                    </label>
-                  </div>
-                  <Slider
-                    value={[settings.hintsPerGame]}
-                    onValueChange={updateHintSetting}
-                    min={0}
-                    max={10}
-                    step={1}
-                    className="mt-2"
-                  />
-                </div>
-              </div>
-            </div>
-            
-            {/* Players List */}
-            <div className="mb-8">
-              <div className="flex justify-between items-center mb-4">
-                <h2 className="text-lg font-semibold">Players ({players.length})</h2>
-                <Button 
-                  variant={players.some(p => p.id === user?.id && p.isReady) ? 'default' : 'outline'}
-                  onClick={toggleReady}
-                  disabled={!user}
-                >
-                  {players.some(p => p.id === user?.id && p.isReady) ? 'Ready ✓' : 'I\'m Ready'}
-                </Button>
-              </div>
-              
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                {players.map(player => (
-                  <div 
-                    key={player.id} 
-                    className={`p-4 rounded-lg border ${player.isReady ? 'border-green-500 bg-green-50' : 'border-gray-200'}`}
-                  >
-                    <div className="flex items-center">
-                      <div className="relative">
-                        <img 
-                          src={player.avatar} 
-                          alt={player.name}
-                          className="h-10 w-10 rounded-full border-2 border-white shadow-sm"
-                        />
-                        {player.isHost && (
-                          <div className="absolute -top-1 -right-1 bg-yellow-400 rounded-full p-0.5">
-                            <Crown className="h-3 w-3 text-yellow-800" />
-                          </div>
-                        )}
-                      </div>
-                      <div className="ml-3">
-                        <p className="text-sm font-medium text-gray-900">
-                          {player.name} {player.id === user?.id && '(You)'}
-                        </p>
-                        <p className="text-xs text-gray-500">
-                          {player.isReady ? 'Ready' : 'Not Ready'}
-                        </p>
-                      </div>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
-            
-            {/* Start Game Button */}
-            <div className="flex justify-end">
-              <Button 
-                onClick={beginCountdown}
-                disabled={!checkAllReady() || players.length < 1}
-                className="px-8 py-6 text-lg"
-              >
-                {countdown !== null ? `Starting in ${countdown}...` : 'Start Game'}
-              </Button>
-            </div>
-          </div>
-        </div>
+  const initializeGame = async () => {
+    try {
+      if (!gameId) return;
+      
+      // If user is not signed in, sign them in as guest
+      if (!user) {
+        await continueAsGuest();
+      }
+      
+      // Load saved settings
+      const savedSettings = localStorage.getItem('friendsGameSettings') || '{}';
+      const settings = JSON.parse(savedSettings);
+      
+      // Navigate directly to the game
+      navigate({
+        pathname: '/test/game',
+        search: `?mode=multi&id=${gameId}`,
+        state: { 
+          settings: {
+            timerEnabled: settings.timerEnabled ?? true,
+            timerSeconds: settings.timerSeconds ?? 60,
+            hintsPerGame: settings.hintsPerGame ?? 3
+          }
+        },
+        replace: true
+      });
+      
+    } catch (error) {
+      console.error('Error initializing game:', error);
+      toast({
+        title: "Error joining game",
+        description: "There was an issue joining the game. Please try again.",
+        variant: "destructive"
+      });
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    initializeGame();
+  }, [gameId, user, continueAsGuest, navigate, toast]);
+
+  if (!gameId) {
+    return (
+      <div className="flex flex-col items-center justify-center min-h-screen bg-gray-100 p-4">
+        <AlertCircle className="h-12 w-12 text-red-500 mb-4" />
+        <h2 className="text-2xl font-bold text-gray-800 mb-2">Game Not Found</h2>
+        <p className="text-gray-600 mb-6">The game link is invalid or has expired.</p>
+        <Button onClick={() => navigate('/test')}>
+          Return to Home
+        </Button>
       </div>
+    );
+  }
+
+  if (isLoading) {
+    return (
+      <div className="flex flex-col items-center justify-center min-h-screen bg-gray-100 p-4">
+        <Loader2 className="h-12 w-12 text-blue-500 animate-spin mb-4" />
+        <p className="text-gray-600">Joining game...</p>
+      </div>
+    );
+  }
+
+  // This should never be reached due to the navigation in useEffect
+  return (
+    <div className="flex flex-col items-center justify-center min-h-screen bg-gray-100 p-4">
+      <Loader2 className="h-12 w-12 text-blue-500 animate-spin mb-4" />
+      <p className="text-gray-600">Redirecting to game...</p>
     </div>
   );
 };
