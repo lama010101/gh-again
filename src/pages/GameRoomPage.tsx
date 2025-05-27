@@ -167,19 +167,17 @@ const GameRoomPage = () => {
       const savedSettings = localStorage.getItem('friendsGameSettings') || '{}';
       const settings = JSON.parse(savedSettings);
       
-      // Navigate directly to the game
-      navigate({
-        pathname: '/test/game',
-        search: `?mode=multi&id=${gameId}`,
-        state: { 
-          settings: {
-            timerEnabled: settings.timerEnabled ?? true,
-            timerSeconds: settings.timerSeconds ?? 60,
-            hintsPerGame: settings.hintsPerGame ?? 3
-          }
-        },
-        replace: true
-      });
+      // Navigate directly to the game - use window.location for a full page reload to avoid router issues
+      // Store settings in localStorage first
+      localStorage.setItem('gameSettings', JSON.stringify({
+        timerEnabled: settings.timerEnabled ?? true,
+        timerSeconds: settings.timerSeconds ?? 60,
+        hintsPerGame: settings.hintsPerGame ?? 3,
+        gameId: gameId
+      }));
+      
+      // Force a hard navigation to ensure we get to the game
+      window.location.href = `/test/game?mode=multi&id=${gameId}`;
       
     } catch (error) {
       console.error('Error initializing game:', error);

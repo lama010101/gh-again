@@ -1,4 +1,4 @@
-import { useNavigate, useParams } from 'react-router-dom';
+import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { useEffect, useState, useCallback } from 'react';
 import GameLayout1 from "@/components/layouts/GameLayout1";
 import { Loader, MapPin } from "lucide-react";
@@ -25,7 +25,16 @@ import {
 // Rename component
 const GameRoundPage = () => {
   const navigate = useNavigate();
-  const { roomId, roundNumber: roundNumberStr } = useParams<{ roomId: string; roundNumber: string }>();
+  const { roomId: paramRoomId, roundNumber: roundNumberStr } = useParams<{ roomId: string; roundNumber: string }>();
+  const [searchParams] = useSearchParams();
+  
+  // Get game ID from URL query parameters (for direct game links)
+  const gameIdFromQuery = searchParams.get('id');
+  const gameMode = searchParams.get('mode');
+  
+  // Use query param ID if available, otherwise use the roomId from the path parameters
+  const roomId = gameIdFromQuery || paramRoomId;
+  
   const [showConfirmDialog, setShowConfirmDialog] = useState(false);
   const [pendingNavigation, setPendingNavigation] = useState<(() => void) | null>(null);
 
@@ -79,6 +88,28 @@ const GameRoundPage = () => {
       roundNumber <= images.length
       ? images[currentRoundIndex] 
       : null;
+  
+  // If the game was started via a direct link, load settings from localStorage
+  useEffect(() => {
+    if (gameMode === 'multi' && gameIdFromQuery) {
+      // Get game settings from localStorage if they exist
+      const savedSettings = localStorage.getItem('gameSettings');
+      if (savedSettings) {
+        try {
+          console.log('Loading game settings from localStorage:', savedSettings);
+          const settings = JSON.parse(savedSettings);
+          
+          // Apply any settings that might be needed here
+          // For example, if we need to set timer values or hint counts
+          if (settings.timerSeconds) {
+            // Use the timer settings if needed
+          }
+        } catch (error) {
+          console.error('Error parsing game settings from localStorage:', error);
+        }
+      }
+    }
+  }, [gameMode, gameIdFromQuery]);
   
   // Extract hints used from the useHint hook
   const { hintsUsedThisRound = 0, hintsUsedTotal = 0, HINTS_PER_GAME } = useHint(imageForRound || null) || {};

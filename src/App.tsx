@@ -130,6 +130,7 @@ const App = () => {
                         <Route path="profile" element={<ProfilePage />} />
                         <Route path="settings" element={<SettingsPage />} />
                         <Route path="room" element={<GameRoomPage />} />
+                        <Route path="game" element={<GameRoundPage />} />
                         <Route path="friends" element={<FriendsPage />} />
                         <Route path="admin" element={<AdminPage />}>
                           <Route index element={<Navigate to="images" replace />} />
