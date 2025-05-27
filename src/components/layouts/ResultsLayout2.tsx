@@ -16,7 +16,17 @@ import {
 } from "lucide-react";
 import ResultsHeader from "@/components/results/ResultsHeader";
 // Import the specific RoundResult type this component uses
-import { RoundResult, XP_WHERE_MAX, XP_WHEN_MAX } from '@/utils/resultsFetching'; 
+import { RoundResult, XP_WHERE_MAX, XP_WHEN_MAX } from '@/utils/resultsFetching';
+import { HINT_PENALTY } from '@/hooks/useHint';
+
+// Update RoundResult to include hint-related fields
+declare module '@/utils/resultsFetching' {
+  interface RoundResult {
+    hintsUsed?: number;
+    hintPenalty?: number;
+    hintPenaltyPercent?: number;
+  }
+} 
 
 // Import Leaflet components and CSS
 import { MapContainer, TileLayer, Marker, Popup, ZoomControl, useMap, Polyline } from 'react-leaflet';
@@ -289,6 +299,24 @@ const ResultsLayout2: React.FC<ResultsLayout2Props> = ({
                   <div className="text-green-600 dark:text-green-400 font-bold flex items-center">+{result.xpTotal}</div>
                 </div>
               </div>
+              
+              {/* Hint usage and penalties */}
+              {result.hintsUsed > 0 && (
+                <div className="mt-4 mb-2 p-3 bg-amber-50 dark:bg-amber-900/20 rounded-lg border border-amber-200 dark:border-amber-800">
+                  <h3 className="text-sm font-semibold text-amber-700 dark:text-amber-400 mb-2">Hint Penalty</h3>
+                  <div className="flex justify-between text-sm">
+                    <div className="text-amber-600 dark:text-amber-300">
+                      {result.hintsUsed} hint{result.hintsUsed !== 1 ? 's' : ''} used
+                    </div>
+                    <div className="text-red-500 dark:text-red-400 font-medium">
+                      -{result.hintPenalty} XP / -{result.hintPenaltyPercent}%
+                    </div>
+                  </div>
+                  <div className="text-xs text-amber-500 dark:text-amber-400 mt-1">
+                    Each hint costs {HINT_PENALTY} XP or {HINT_PENALTY}% accuracy
+                  </div>
+                </div>
+              )}
               
               {/* Display earned badges if any */}
               {result.earnedBadges && result.earnedBadges.length > 0 && (

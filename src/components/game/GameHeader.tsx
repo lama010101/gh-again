@@ -3,6 +3,7 @@ import { Button } from "@/components/ui/button";
 import { Clock, HelpCircle } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { useGame } from '@/contexts/GameContext';
+import { HINTS_PER_GAME } from '@/hooks/useHint';
 
 interface GameHeaderProps {
   imageUrl: string;
@@ -10,8 +11,9 @@ interface GameHeaderProps {
   selectedHintType?: string | null;
   remainingTime?: string;
   onHintClick: () => void;
-  hintsUsed?: number;
-  hintsAllowed?: number;
+  hintsUsed?: number; // Hints used in current round
+  hintsAllowed?: number; // Hints allowed per round
+  hintsUsedTotal?: number; // Total hints used across all rounds
   rawRemainingTime?: number;
 }
 
@@ -23,10 +25,16 @@ const GameHeader: React.FC<GameHeaderProps> = ({
   onHintClick,
   hintsUsed = 0,
   hintsAllowed = 0,
+  hintsUsedTotal = 0,
   rawRemainingTime = 0
 }) => {
-  const hintsRemaining = hintsAllowed - hintsUsed;
-  const isHintDisabled = hintsRemaining <= 0;
+  // Check if hints are disabled for this round
+  const hintsRemainingThisRound = hintsAllowed - hintsUsed;
+  // Calculate total hints remaining for the game
+  const hintsTotalRemaining = HINTS_PER_GAME - hintsUsedTotal;
+  
+  // Disable hint button if either round limit or total game limit is reached
+  const isHintDisabled = hintsRemainingThisRound <= 0 || hintsTotalRemaining <= 0;
   
   const isTimeRunningOut = rawRemainingTime <= 10;
   const timerBadgeClass = isTimeRunningOut ? "bg-red-600 hover:bg-red-700" : "bg-primary";
@@ -49,7 +57,7 @@ const GameHeader: React.FC<GameHeaderProps> = ({
           <HelpCircle className="h-5 w-5" />
           <span className="ml-1">Hint</span>
           <Badge variant="default" className="ml-1">
-            {selectedHintType ? selectedHintType : `${hintsRemaining}/${hintsAllowed}`}
+            {selectedHintType ? selectedHintType : `${hintsTotalRemaining}/${HINTS_PER_GAME}`}
           </Badge>
         </Button>
         {remainingTime && (

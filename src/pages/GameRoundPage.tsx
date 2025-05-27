@@ -13,7 +13,7 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 import { ConfirmNavigationDialog } from '@/components/game/ConfirmNavigationDialog';
-import { useHint } from '@/hooks/useHint';
+import { useHint, HINT_PENALTY } from '@/hooks/useHint';
 import { 
   calculateDistanceKm, 
   calculateRoundScore, 
@@ -81,7 +81,7 @@ const GameRoundPage = () => {
       : null;
   
   // Extract hints used from the useHint hook
-  const { hintsUsedThisRound = 0 } = useHint(imageForRound || null) || {};
+  const { hintsUsedThisRound = 0, hintsUsedTotal = 0, HINTS_PER_GAME } = useHint(imageForRound || null) || {};
 
   // Handle guess submission
   const handleSubmitGuess = useCallback(() => {
@@ -121,13 +121,20 @@ const GameRoundPage = () => {
           ) 
         : null;
 
-      // Calculate base scores using the standardized system
-      const { timeXP = 0, locationXP = 0, roundXP: finalScore = 0, roundPercent = 0 } = distance !== null 
-        ? calculateRoundScore(distance, selectedYear, imageForRound.year) 
-        : { timeXP: 0, locationXP: 0, roundXP: 0, roundPercent: 0 };
+      // Calculate scores with hint penalties applied
+      const { 
+        timeXP = 0, 
+        locationXP = 0, 
+        roundXP: finalScore = 0, 
+        roundPercent = 0,
+        hintPenalty = 0,
+        hintPenaltyPercent = 0
+      } = distance !== null 
+        ? calculateRoundScore(distance, selectedYear, imageForRound.year, hintsUsedThisRound, HINT_PENALTY) 
+        : { timeXP: 0, locationXP: 0, roundXP: 0, roundPercent: 0, hintPenalty: 0, hintPenaltyPercent: 0 };
       
-      // Log the raw score (hint penalties will be applied later in FinalResultsPage)
-      console.log(`Distance: ${distance?.toFixed(2) ?? 'N/A'} km, Location XP: ${locationXP.toFixed(1)}, Time XP: ${timeXP.toFixed(1)}, Round XP: ${finalScore.toFixed(1)}, Hints Used: ${hintsUsedThisRound}`);
+      // Log the score with hint penalties applied
+      console.log(`Distance: ${distance?.toFixed(2) ?? 'N/A'} km, Location XP: ${locationXP.toFixed(1)}, Time XP: ${timeXP.toFixed(1)}, Hint Penalty: -${hintPenalty}, Round XP: ${finalScore.toFixed(1)}, Accuracy: ${roundPercent}%, Hints Used: ${hintsUsedThisRound}`);
 
       recordRoundResult(
         {
@@ -215,10 +222,17 @@ const GameRoundPage = () => {
             ) 
           : null;
 
-        // Calculate base scores using the standardized system
-        const { timeXP = 0, locationXP = 0, roundXP: baseRoundXP = 0, roundPercent = 0 } = distance !== null 
-          ? calculateRoundScore(distance, selectedYear, imageForRound.year) 
-          : { timeXP: 0, locationXP: 0, roundXP: 0, roundPercent: 0 };
+        // Calculate scores with hint penalties applied
+        const { 
+          timeXP = 0, 
+          locationXP = 0, 
+          roundXP: baseRoundXP = 0, 
+          roundPercent = 0,
+          hintPenalty = 0,
+          hintPenaltyPercent = 0
+        } = distance !== null 
+          ? calculateRoundScore(distance, selectedYear, imageForRound.year, hintsUsedThisRound, HINT_PENALTY) 
+          : { timeXP: 0, locationXP: 0, roundXP: 0, roundPercent: 0, hintPenalty: 0, hintPenaltyPercent: 0 };
         
         // Ensure we have valid numbers for the final score calculation
         const safeRoundXP = Number.isFinite(baseRoundXP) ? baseRoundXP : 0;

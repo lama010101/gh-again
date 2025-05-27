@@ -14,7 +14,7 @@ const FriendsGameModal: React.FC<FriendsGameModalProps> = ({
   onStartGame,
   isLoading = false,
 }) => {
-  const [hintsPerGame, setHintsPerGame] = useState(3);
+  const [hintsPerGame, setHintsPerGame] = useState(10);
   const [timerEnabled, setTimerEnabled] = useState(true);
   const [timerSeconds, setTimerSeconds] = useState(60);
   const [initialState, setInitialState] = useState({ hintsPerGame: 3, timerEnabled: true, timerSeconds: 60 });
@@ -25,20 +25,20 @@ const FriendsGameModal: React.FC<FriendsGameModalProps> = ({
       if (saved) {
         try {
           const parsed = JSON.parse(saved);
-          setHintsPerGame(parsed.hintsPerGame ?? 3);
+          setHintsPerGame(parsed.hintsPerGame ?? 10);
           setTimerEnabled(parsed.timerEnabled ?? true);
           setTimerSeconds(parsed.timerSeconds ?? 60);
           setInitialState({
-            hintsPerGame: parsed.hintsPerGame ?? 3,
+            hintsPerGame: parsed.hintsPerGame ?? 10,
             timerEnabled: parsed.timerEnabled ?? true,
             timerSeconds: parsed.timerSeconds ?? 60,
           });
         } catch {
           // Use defaults if parsing fails
-          setHintsPerGame(3);
+          setHintsPerGame(10);
           setTimerEnabled(true);
           setTimerSeconds(60);
-          setInitialState({ hintsPerGame: 3, timerEnabled: true, timerSeconds: 60 });
+          setInitialState({ hintsPerGame: 10, timerEnabled: true, timerSeconds: 60 });
         }
       }
     }
@@ -135,14 +135,17 @@ const FriendsGameModal: React.FC<FriendsGameModalProps> = ({
                 <input
                   type="range"
                   min={0}
-                  max={15}
+                  max={10}
                   value={hintsPerGame}
                   onChange={e => setHintsPerGame(Number(e.target.value))}
                   className="w-full accent-orange-500"
                 />
                 <div className="flex justify-between text-xs text-gray-400">
-                  <span>0</span><span>5</span><span>10</span><span>15</span>
+                  <span>0</span><span>5</span><span>10</span>
                 </div>
+                <p className="text-xs text-gray-500 mt-2">
+                  You can use up to 10 hints per game (2 per round). Each hint costs 30 XP or 30% accuracy.
+                </p>
               </div>
             </div>
 

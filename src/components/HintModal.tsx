@@ -2,7 +2,7 @@
 import React, { useState } from 'react';
 import Popup from '@/components/ui/Popup';
 import { Button } from "@/components/ui/button";
-import { MapPin, Clock, HelpCircle } from "lucide-react";
+import { MapPin, Clock } from "lucide-react";
 import { HintType } from "@/hooks/useHint";
 
 interface HintModalProps {
@@ -65,7 +65,6 @@ const HintModal = ({
               <div className="mb-4">
                 {selectedHintType === 'where' && <MapPin className="mx-auto h-8 w-8 text-history-secondary mb-2" />}
                 {selectedHintType === 'when' && <Clock className="mx-auto h-8 w-8 text-history-secondary mb-2" />}
-                {selectedHintType === 'what' && <HelpCircle className="mx-auto h-8 w-8 text-history-secondary mb-2" />}
                 <h3 className="text-lg font-medium capitalize">{selectedHintType}</h3>
               </div>
               <p className="text-xl font-medium">
@@ -77,7 +76,7 @@ const HintModal = ({
             <div className="grid gap-4">
               <div className="mb-4 p-3 bg-yellow-500/10 border border-yellow-500/30 rounded-lg">
                 <div className="flex items-start gap-2">
-                  <span className="text-yellow-400 text-sm mt-0.5">💡</span>
+                  <span className="text-yellow-400 text-sm mt-0.5">⚠️</span>
                   <div>
                     <p className="text-yellow-300 text-sm font-medium">Hint Cost</p>
                     <p className="text-yellow-200 text-xs mt-1">
@@ -159,28 +158,7 @@ const HintModal = ({
                     </div>
                   </button>
                   
-                  <button 
-                    onClick={() => handleHintSelection('what')}
-                    className={`hint-button p-4 rounded-xl glass flex items-center transition-colors ${
-                      hintsUsedThisRound >= HINTS_PER_ROUND 
-                        ? 'opacity-50 cursor-not-allowed' 
-                        : 'hover:bg-white/10'}`}
-                    disabled={hintsUsedThisRound >= HINTS_PER_ROUND || loadingHint !== null}
-                  >
-                    <div className={`bg-gradient-to-br from-amber-500 to-orange-600 h-12 w-12 rounded-full flex items-center justify-center ${
-                      loadingHint === 'what' ? 'animate-pulse' : ''
-                    }`}>
-                      {loadingHint === 'what' ? (
-                        <div className="h-4 w-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
-                      ) : (
-                        <HelpCircle className="h-6 w-6 text-white" />
-                      )}
-                    </div>
-                    <div className="ml-4 text-left">
-                      <h3 className="text-lg font-medium">What</h3>
-                      <p className="text-sm text-gray-300">Reveals a description</p>
-                    </div>
-                  </button>
+                  {/* Removed 'what' hint button as per requirements */}
                 </div>
               )}
             </div>

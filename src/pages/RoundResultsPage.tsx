@@ -40,6 +40,10 @@ interface LayoutRoundResult {
     imageUrl: string;
     imageTitle: string;
     imageDescription: string;
+    // Hint-related fields
+    hintsUsed?: number;
+    hintPenalty?: number;
+    hintPenaltyPercent?: number;
     // Add any other fields ResultsLayout2 might need internally
     // These might be optional depending on ResultsLayout2 implementation
     xpWhere?: number;
@@ -161,7 +165,15 @@ const RoundResultsPage = () => {
       // Use the values from context if available, otherwise calculate
       const xpWhere = ctxResult.xpWhere ?? Math.round(calculateLocationAccuracy(distanceKm));
       const xpWhen = ctxResult.xpWhen ?? Math.round(calculateTimeAccuracy(guessYear, actualYear));
-      const xpTotal = ctxResult.score ?? (xpWhere + xpWhen);
+      
+      // Get hint-related information
+      const hintsUsed = ctxResult.hintsUsed ?? 0;
+      const hintPenalty = hintsUsed * 30; // 30 XP per hint
+      const hintPenaltyPercent = hintsUsed * 30; // 30% per hint
+      
+      // Calculate total XP with hint penalties
+      const xpBeforePenalty = xpWhere + xpWhen;
+      const xpTotal = ctxResult.score ?? Math.max(0, xpBeforePenalty - hintPenalty);
       
       // Get standardized time difference description
       const timeDifferenceDesc = getTimeDifferenceDescription(guessYear, actualYear);
@@ -185,6 +197,10 @@ const RoundResultsPage = () => {
           xpTotal: xpTotal,
           xpWhere: xpWhere,
           xpWhen: xpWhen,
+          // Include hint information
+          hintsUsed: hintsUsed,
+          hintPenalty: hintPenalty,
+          hintPenaltyPercent: hintPenaltyPercent,
           // Include image details if the type definition requires them
           imageTitle: img.title || 'Untitled',
           imageDescription: img.description || 'No description.',

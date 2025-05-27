@@ -101,24 +101,44 @@ export const calculateXP = (
  * @param distanceKm - Distance between guess and actual location in kilometers
  * @param guessedYear - The year guessed by the player
  * @param actualYear - The actual year of the historical event
+ * @param hintsUsed - Number of hints used in this round
+ * @param hintPenalty - XP penalty per hint used (default: 30)
  * @returns Object containing XP and accuracy metrics for the round
  */
-export const calculateRoundScore = (distanceKm: number, guessedYear: number, actualYear: number): {
+export const calculateRoundScore = (
+  distanceKm: number, 
+  guessedYear: number, 
+  actualYear: number, 
+  hintsUsed: number = 0,
+  hintPenalty: number = 30
+): {
   timeXP: number;
   locationXP: number;
+  hintPenalty: number;
+  hintPenaltyPercent: number;
   roundXP: number;
   roundPercent: number;
 } => {
   const timeXP = calculateTimeXP(guessedYear, actualYear);
   const locationXP = calculateLocationXP(distanceKm);
   
-  // Combined per-round values with rounding
-  const roundXP = Math.round(timeXP + locationXP); // 0-200
-  const roundPercent = Math.round((roundXP / (MAX_XP_TIME + MAX_XP_LOC)) * 100); // 0-100%
+  // Calculate hint penalties
+  const totalHintPenalty = hintsUsed * hintPenalty;
+  const hintPenaltyPercent = hintsUsed * 30; // 30% per hint
+  
+  // Combined per-round values with rounding and hint penalties
+  const roundXPBeforePenalty = timeXP + locationXP; // 0-200
+  const roundXP = Math.max(0, Math.round(roundXPBeforePenalty - totalHintPenalty));
+  
+  // Calculate percentage with hint penalty
+  const percentBeforePenalty = (roundXPBeforePenalty / (MAX_XP_TIME + MAX_XP_LOC)) * 100;
+  const roundPercent = Math.max(0, Math.round(percentBeforePenalty - hintPenaltyPercent));
   
   return {
     timeXP,
     locationXP,
+    hintPenalty: totalHintPenalty,
+    hintPenaltyPercent,
     roundXP,
     roundPercent
   };
@@ -132,10 +152,18 @@ export const calculateRoundScore = (distanceKm: number, guessedYear: number, act
 export const calculateFinalScore = (roundScores: Array<{
   roundXP: number;
   roundPercent: number;
+  hintPenalty?: number;
+  hintPenaltyPercent?: number;
 }>): {
   finalXP: number;
   finalPercent: number;
+  totalHintPenalty: number;
+  totalHintPenaltyPercent: number;
 } => {
+  // Calculate total hint penalties
+  const totalHintPenalty = roundScores.reduce((sum, round) => sum + (round.hintPenalty || 0), 0);
+  const totalHintPenaltyPercent = roundScores.reduce((sum, round) => sum + (round.hintPenaltyPercent || 0), 0) / roundScores.length;
+  
   // Sum up all round XP values and round to nearest integer
   const finalXP = Math.round(roundScores.reduce((sum, round) => sum + round.roundXP, 0));
   
@@ -148,15 +176,21 @@ export const calculateFinalScore = (roundScores: Array<{
     roundScores: roundScores.map((r, i) => ({
       round: i + 1,
       roundXP: r.roundXP,
-      roundPercent: r.roundPercent
+      roundPercent: r.roundPercent,
+      hintPenalty: r.hintPenalty || 0,
+      hintPenaltyPercent: r.hintPenaltyPercent || 0
     })),
     finalXP,
-    finalPercent
+    finalPercent,
+    totalHintPenalty,
+    totalHintPenaltyPercent
   });
   
   return {
     finalXP,
-    finalPercent
+    finalPercent,
+    totalHintPenalty,
+    totalHintPenaltyPercent
   };
 };
 

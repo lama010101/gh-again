@@ -2,7 +2,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { GameImage } from '@/contexts/GameContext';
 
-export type HintType = 'where' | 'when' | 'what' | null;
+export type HintType = 'where' | 'when' | null;
 
 interface HintState {
   selectedHintType: HintType;
@@ -27,47 +27,12 @@ const getDecadeHint = (year: number): string => {
   return `${decade}s`;
 };
 
-const getDescriptionHint = (description: string): string => {
-  if (!description || typeof description !== 'string') {
-    return 'No description available';
-  }
-  
-  // Remove specific location and date references
-  let cleanDescription = description;
-  
-  // Remove location references (simple approach, could be more sophisticated)
-  cleanDescription = cleanDescription
-    // Remove location names (words that start with a capital letter and are followed by lowercase letters)
-    .replace(/\b[A-Z][a-z]+(?:\s+[A-Z][a-z]+)*/g, (match) => {
-      // Skip words that are at the start of a sentence or proper nouns
-      return match.endsWith('.') || match.endsWith('!') || match.endsWith('?') ? match : '...';
-    })
-    // Remove location prepositions
-    .replace(/\b(in|at|near|from|to|by|on|upon|along|across|through|into|onto|towards|between|among|around|before|after|behind|below|beneath|beside|beyond|inside|outside|under|underneath|within|without)\s+[A-Za-z]+(?:\s+[A-Za-z]+)*/gi, '...')
-    // Remove specific addresses or coordinates
-    .replace(/\b\d+\s+[A-Za-z]+(?:\s+[A-Za-z\.]+)*/g, '...')
-    // Remove years
-    .replace(/\b(19|20)\d{2}\b/g, '...')
-    // Remove any remaining numbers
-    .replace(/\b\d+\b/g, '...')
-    // Clean up multiple dots
-    .replace(/\.{2,}/g, '...')
-    // Clean up spaces around dots
-    .replace(/\s*\.\.\.\s*/g, '... ')
-    .trim();
-  
-  // If we've removed too much, provide a generic hint
-  if (cleanDescription.split(/\s+/).length < 5) {
-    return 'This image shows a significant historical event or location.';
-  }
-  
-  return cleanDescription;
-};
+// Removed getDescriptionHint as we're no longer using the 'what' hint type
 
 // HINT SYSTEM CONSTANTS
-export const HINTS_PER_ROUND = 2;
-export const HINTS_PER_GAME = 10;
-export const HINT_PENALTY = 30; // 30 XP or 30% accuracy
+export const HINTS_PER_ROUND = 2; // Maximum hints allowed per round
+export const HINTS_PER_GAME = 10; // Maximum hints allowed per game
+export const HINT_PENALTY = 30; // 30 XP or 30% accuracy penalty per hint used
 
 export const useHint = (imageData: GameImage | null = null) => {
   const [hintsUsedThisRound, setHintsUsedThisRound] = useState(0);
@@ -113,10 +78,6 @@ export const useHint = (imageData: GameImage | null = null) => {
           break;
         case 'when':
           content = getDecadeHint(imageData.year || new Date().getFullYear());
-          break;
-        case 'what':
-          // For 'what' hint, use the description with sensitive information removed
-          content = getDescriptionHint(imageData.description || '');
           break;
         default:
           content = 'No hint available';
