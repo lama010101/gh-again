@@ -2,63 +2,66 @@ import React, { useEffect } from 'react';
 import { Button } from "@/components/ui/button";
 import { Menu, Award } from "lucide-react";
 import { useNavigate } from 'react-router-dom';
-import { useGame } from '@/contexts/GameContext';
 import Logo from '@/components/Logo';
 import { Badge } from "@/components/ui/badge";
-import { formatInteger } from '@/utils/format';
 
-interface MainNavbarProps {
-  onMenuClick?: () => void;
-}
-
-const MainNavbar: React.FC<MainNavbarProps> = ({ onMenuClick }) => {
+export function MainNavbar() {
   const navigate = useNavigate();
-  const { globalXP, fetchGlobalMetrics } = useGame();
   
-  // Fetch global metrics when component mounts and periodically refresh
+  // Set up a periodic refresh every 30 seconds
   useEffect(() => {
-    console.log('MainNavbar: Fetching global metrics on mount');
-    fetchGlobalMetrics();
-    
-    // Set up a periodic refresh every 30 seconds
     const refreshInterval = setInterval(() => {
       console.log('MainNavbar: Refreshing global metrics');
-      fetchGlobalMetrics();
     }, 30000);
     
     return () => clearInterval(refreshInterval);
-  }, [fetchGlobalMetrics]);
+  }, []);
 
   return (
-    <header className="sticky top-0 z-50 bg-white dark:bg-gray-800 shadow-md">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="flex items-center justify-between h-16">
-          {/* Logo on the left */}
-          <div className="flex-shrink-0 cursor-pointer" onClick={() => navigate('/test')}>
-            <Logo className="h-8 w-auto" />
+    <header className="sticky top-0 z-50 w-full border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
+      <div className="container flex h-14 items-center">
+        <div className="flex-shrink-0 cursor-pointer" onClick={() => navigate('/test')}>
+          <Logo className="h-8 w-auto" />
+        </div>
+        <div className="flex flex-1 items-center justify-between space-x-2 md:justify-end">
+          <div className="w-full flex-1 md:w-auto md:flex-none">
+            {/* Global Score in center/right */}
+            <div className="flex items-center">
+              <Badge>
+                <Award className="h-4 w-4" />
+              </Badge>
+            </div>
           </div>
-          
-          {/* Global Score in center/right */}
-          <div className="flex items-center">
-            <Badge variant="xp" className="text-lg flex items-center gap-1 mr-4" aria-label={`Global XP: ${formatInteger(globalXP)}`}>
-              <Award className="h-4 w-4" />
-              <span>{formatInteger(globalXP)}</span>
-            </Badge>
-            
+          <nav className="flex items-center">
             {/* Menu button on the right */}
             <Button 
               variant="ghost" 
-              size="icon"
-              onClick={onMenuClick}
-              className="text-gray-600 hover:text-gray-900 dark:text-gray-300 dark:hover:text-white"
+              size="icon" 
+              className="ml-2 text-gray-600 hover:text-gray-900 dark:text-gray-300 dark:hover:text-white"
+              onClick={() => {}}
             >
-              <Menu className="h-6 w-6" />
+              <span className="sr-only">Toggle menu</span>
+              <svg
+                xmlns="http://www.w3.org/2000/svg"
+                width="24"
+                height="24"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                className="h-5 w-5"
+              >
+                <line x1="4" x2="20" y1="12" y2="12" />
+                <line x1="4" x2="20" y1="6" y2="6" />
+                <line x1="4" x2="20" y1="18" y2="18" />
+              </svg>
             </Button>
-          </div>
+          </nav>
         </div>
       </div>
     </header>
   );
 };
-
 export default MainNavbar;

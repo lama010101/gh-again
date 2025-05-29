@@ -1,104 +1,266 @@
-import React, { createContext, useState, useContext, ReactNode, useCallback, useEffect } from 'react';
+import React, { useState, useCallback, useEffect, useMemo, createContext, useContext } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useNavigate } from 'react-router-dom';
 import { useSettingsStore } from '@/lib/useSettingsStore';
 import { v4 as uuidv4 } from 'uuid'; // For generating unique game IDs
+import { 
+  GameSettings, 
+  GuessCoordinates, 
+  RoundResult, 
+  GameImage, 
+  PersistedGameState,
+  GameErrorType
+} from '@/types/game';
+import {
+  MIN_LATITUDE,
+  MAX_LATITUDE,
+  MIN_LONGITUDE,
+  MAX_LONGITUDE,
+  MIN_YEAR,
+  MAX_YEAR,
+  GAME_STORAGE_KEY
+} from '@/constants/game';
 
-// Define the structure for a user's guess coordinates
-export interface GuessCoordinates {
-  lat: number;
-  lng: number;
+// Validation functions for GameSettings
+export const validateGameSettings = (settings: GameSettings): boolean => {
+  return settings.timerSeconds >= 0 && settings.hintsPerGame >= 0;
+};
+
+// Validation function for coordinates
+export const validateCoordinates = (coords: GuessCoordinates): boolean => {
+  return coords.lat >= MIN_LATITUDE && coords.lat <= MAX_LATITUDE && 
+         coords.lng >= MIN_LONGITUDE && coords.lng <= MAX_LONGITUDE;
+};
+
+// Validation function for RoundResult
+export const validateRoundResult = (result: RoundResult): boolean => {
+  return (
+    result.roundIndex >= 0 &&
+    result.imageId.length > 0 &&
+    (result.guessCoordinates === null || validateCoordinates(result.guessCoordinates)) &&
+    validateCoordinates(result.actualCoordinates) &&
+    (result.distanceKm === null || result.distanceKm >= 0) &&
+    (result.score === null || (result.score >= 0 && result.score <= 100)) &&
+    (result.guessYear === null || (result.guessYear >= MIN_YEAR && result.guessYear <= MAX_YEAR)) &&
+    result.xpWhere >= 0 && result.xpWhere <= 100 &&
+    result.xpWhen >= 0 && result.xpWhen <= 100 &&
+    result.accuracy >= 0 && result.accuracy <= 100 &&
+    result.hintsUsed >= 0
+  );
+};
+
+// Validation function for GameImage
+export const validateGameImage = (image: GameImage): boolean => {
+  const urlPattern = /^https?:\/\/.+/i;
+
+  return (
+    image.id.length > 0 &&
+    image.title.length > 0 &&
+    image.description.length > 0 &&
+    image.latitude >= MIN_LATITUDE && image.latitude <= MAX_LATITUDE &&
+    image.longitude >= MIN_LONGITUDE && image.longitude <= MAX_LONGITUDE &&
+    image.year >= MIN_YEAR && image.year <= MAX_YEAR &&
+    urlPattern.test(image.image_url) &&
+    image.location_name.length > 0
+  );
+};
+
+// State persistence utilities
+
+/**
+ * Persists game state to localStorage
+ * @param state - The game state to persist
+ */
+const persistGameState = (state: PersistedGameState): void => {
+  try {
+    localStorage.setItem(GAME_STORAGE_KEY, JSON.stringify(state));
+  } catch (error) {
+    console.error('Failed to persist game state:', error);
+  }
+};
+
+/**
+ * Loads persisted game state from localStorage
+ * @returns The persisted game state or null if not found/invalid
+ */
+const loadPersistedState = (): PersistedGameState | null => {
+  try {
+    const savedState = localStorage.getItem(GAME_STORAGE_KEY);
+    if (!savedState) return null;
+    
+    const parsedState = JSON.parse(savedState) as PersistedGameState;
+    if (!validatePersistedState(parsedState)) {
+      throw new Error('Invalid persisted state');
+    }
+    return parsedState;
+  } catch (error) {
+    console.error('Failed to load persisted state:', error);
+    localStorage.removeItem(GAME_STORAGE_KEY);
+    return null;
+  }
+};
+
+/**
+ * Type guard to validate persisted state
+ * @param state - The state to validate
+ * @returns Boolean indicating if state is valid
+ */
+const validatePersistedState = (state: unknown): state is PersistedGameState => {
+  const s = state as PersistedGameState;
+  return (
+    typeof s === 'object' &&
+    s !== null &&
+    typeof s.gameId === 'string' &&
+    (s.roomId === null || typeof s.roomId === 'string') &&
+    Array.isArray(s.images) &&
+    s.images.every(validateGameImage) &&
+    Array.isArray(s.roundResults) &&
+    s.roundResults.every(validateRoundResult) &&
+    typeof s.hintsAllowed === 'number' &&
+    typeof s.roundTimerSec === 'number' &&
+    typeof s.totalGameAccuracy === 'number' &&
+    typeof s.totalGameXP === 'number'
+  );
+};
+
+// Error handling utilities
+/**
+ * Creates a standardized error object
+ * @param code - Error code
+ * @param message - Error message
+ * @param details - Additional error details
+ * @returns GameErrorType object
+ */
+const createError = (code: string, message: string, details?: unknown): GameErrorType => ({
+  code,
+  message,
+  details
+});
+
+/**
+ * Handles unknown errors and converts them to GameErrorType
+ * @param error - The error to handle
+ * @param defaultMessage - Default message if error has no message
+ * @returns GameErrorType object
+ */
+const handleError = (error: unknown, defaultMessage: string): GameErrorType => {
+  if (error instanceof Error) {
+    return createError('UNKNOWN_ERROR', error.message || defaultMessage);
+  }
+  return createError('UNKNOWN_ERROR', defaultMessage);
+};
+
+// Custom error classes for better error handling
+export class GameError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = 'GameError';
+  }
 }
 
-// Define the structure for the result of a single round
-export interface RoundResult {
-  roundIndex: number; // 0-based index
-  imageId: string;
-  guessCoordinates: GuessCoordinates | null;
-  actualCoordinates: { lat: number; lng: number };
-  distanceKm: number | null; // Distance in kilometers
-  score: number | null;
-  guessYear: number | null; // Added year guess
-  xpWhere?: number; // Location XP (0-100)
-  xpWhen?: number; // Time XP (0-100)
-  accuracy?: number; // Overall accuracy percentage for the round (0-100)
-  hintsUsed?: number; // Number of hints used in this round
+export class ValidationError extends GameError {
+  constructor(message: string) {
+    super(message);
+    this.name = 'ValidationError';
+  }
 }
 
-// Define the structure of an image object based on actual schema
-export interface GameImage {
-  id: string;
-  title: string;
-  description: string;
-  // Keep fields that exist
-  latitude: number;
-  longitude: number;
-  year: number;
-  image_url: string; // Use actual column name
-  location_name: string;
-  url: string; // Keep processed url field
+export class NetworkError extends GameError {
+  constructor(message: string) {
+    super(message);
+    this.name = 'NetworkError';
+  }
+}
+
+export class PersistenceError extends GameError {
+  constructor(message: string) {
+    super(message);
+    this.name = 'PersistenceError';
+  }
 }
 
 // Define the context state shape
-interface GameContextState {
-  // ... existing properties ...
-  gameId: string | null; // Unique ID for the current game session
-  refreshGlobalMetrics: () => Promise<void>; // Add this line
+interface GameState {
+  gameId: string | null;
   roomId: string | null;
   images: GameImage[];
-  roundResults: RoundResult[]; // Store results for each round
+  roundResults: RoundResult[];
   isLoading: boolean;
-  error: string | null;
-  hintsAllowed: number; // Number of hints allowed per game
-  roundTimerSec: number; // Timer duration for each round in seconds
-  totalGameAccuracy: number; // Current game accuracy
-  totalGameXP: number; // Current game XP
-  globalAccuracy: number; // Average accuracy across all games
-  globalXP: number; // Total XP earned across all games
-  setHintsAllowed: (hints: number) => void; // Function to update hints allowed
-  setRoundTimerSec: (seconds: number) => void; // Function to update round timer
-  startGame: () => Promise<void>;
-  recordRoundResult: (result: Omit<RoundResult, 'roundIndex' | 'imageId' | 'actualCoordinates'>, currentRoundIndex: number) => void; // Function to record results
+  error: GameErrorType | null;
+  hintsAllowed: number;
+  roundTimerSec: number;
+  totalGameAccuracy: number;
+  totalGameXP: number;
+}
+
+// Define the context actions shape
+interface GameActions {
+  setGameId: (id: string | null) => void;
+  setRoomId: (id: string | null) => void;
+  setImages: (images: GameImage[]) => void;
+  setRoundResults: (results: RoundResult[]) => void;
+  setIsLoading: (loading: boolean) => void;
+  setError: (error: GameErrorType | null) => void;
+  setHintsAllowed: (hints: number) => void;
+  setRoundTimerSec: (seconds: number) => void;
+  setTotalGameAccuracy: (accuracy: number) => void;
+  setTotalGameXP: (xp: number) => void;
+  startGame: (mode: 'solo' | 'multi', existingGameId?: string) => Promise<void>;
+  recordRoundResult: (result: Omit<RoundResult, 'imageId' | 'actualCoordinates' | 'roundIndex'> & { 
+    roundIndex: number, 
+    imageId: string, 
+    actualCoordinates: { lat: number; lng: number } 
+  }) => Promise<boolean>;
   resetGame: () => void;
-  fetchGlobalMetrics: () => Promise<void>; // Function to fetch global metrics from Supabase or localStorage
+  fetchGlobalMetrics: () => Promise<void>;
+  refreshGlobalMetrics: () => Promise<void>;
 }
 
-// Create the context
-const GameContext = createContext<GameContextState | undefined>(undefined);
+// Create the contexts
+const GameStateContext = createContext<GameState | undefined>(undefined);
+const GameActionsContext = createContext<GameActions | undefined>(undefined);
 
-// Define the provider props
-interface GameProviderProps {
-  children: ReactNode;
-}
-
-// Helper function to shuffle an array (Fisher-Yates algorithm)
-function shuffleArray<T>(array: T[]): T[] {
-  let currentIndex = array.length, randomIndex;
-  // While there remain elements to shuffle.
-  while (currentIndex !== 0) {
-    // Pick a remaining element.
-    randomIndex = Math.floor(Math.random() * currentIndex);
-    currentIndex--;
-    // And swap it with the current element.
-    [array[currentIndex], array[randomIndex]] = [
-      array[randomIndex], array[currentIndex]];
+// Custom hooks to use the contexts
+export const useGameState = () => {
+  const context = useContext(GameStateContext);
+  if (!context) {
+    throw new Error('useGameState must be used within a GameProvider');
   }
-  return array;
-}
+  return context;
+};
 
-// Create the provider component
-export const GameProvider: React.FC<GameProviderProps> = ({ children }) => {
+export const useGameActions = () => {
+  const context = useContext(GameActionsContext);
+  if (!context) {
+    throw new Error('useGameActions must be used within a GameProvider');
+  }
+  return context;
+};
+
+// Combined hook for convenience
+export const useGame = () => {
+  const state = useGameState();
+  const actions = useGameActions();
+  return { ...state, ...actions };
+};
+
+// --- PROVIDER ---
+export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+  // State variables
   const [gameId, setGameId] = useState<string | null>(null);
   const [roomId, setRoomId] = useState<string | null>(null);
   const [images, setImages] = useState<GameImage[]>([]);
-  const [roundResults, setRoundResults] = useState<RoundResult[]>([]); // Initialize results state
+  const [roundResults, setRoundResults] = useState<RoundResult[]>([]);
   const [isLoading, setIsLoading] = useState<boolean>(false);
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useState<GameErrorType | null>(null);
   const [hintsAllowed, setHintsAllowed] = useState<number>(3); // Default 3 hints per game
-  
   // Get timer setting from settings store (defaults to 60 seconds)
   const { timerSeconds, setTimerSeconds } = useSettingsStore();
   const [roundTimerSec, setRoundTimerSec] = useState<number>(timerSeconds || 60);
+  const [totalGameAccuracy, setTotalGameAccuracy] = useState<number>(0);
+  const [totalGameXP, setTotalGameXP] = useState<number>(0);
+
+  const navigate = useNavigate();
 
   // Keep roundTimerSec in sync with timerSeconds from settings store
   useEffect(() => {
@@ -118,56 +280,40 @@ export const GameProvider: React.FC<GameProviderProps> = ({ children }) => {
     setRoundTimerSec(seconds);
     setTimerSeconds(seconds);
   }, [setTimerSeconds]);
-  const [totalGameAccuracy, setTotalGameAccuracy] = useState<number>(0);
-  const [totalGameXP, setTotalGameXP] = useState<number>(0);
-  const [globalAccuracy, setGlobalAccuracy] = useState<number>(0);
-  const [globalXP, setGlobalXP] = useState<number>(0);
-  const navigate = useNavigate();
 
-  // Save game state to localStorage whenever it changes
+  // Save game state when it changes
   useEffect(() => {
-    if (roomId && images.length > 0) {
-      const gameState = {
+    if (gameId) {
+      persistGameState({
+        gameId,
         roomId,
         images,
         roundResults,
         hintsAllowed,
         roundTimerSec,
         totalGameAccuracy,
-        totalGameXP,
-        timestamp: Date.now()
-      };
-      localStorage.setItem('gh_current_game', JSON.stringify(gameState));
+        totalGameXP
+      });
     }
-  }, [roomId, images, roundResults, hintsAllowed, roundTimerSec, totalGameAccuracy, totalGameXP]);
+  }, [gameId, roomId, images, roundResults, hintsAllowed, roundTimerSec, totalGameAccuracy, totalGameXP]);
 
   // Load game state from localStorage on mount
   useEffect(() => {
     const loadGameState = () => {
       try {
-        const savedGame = localStorage.getItem('gh_current_game');
-        if (savedGame) {
-          const gameState = JSON.parse(savedGame);
-          
-          // Only load if the saved game is less than 24 hours old
-          const TWENTY_FOUR_HOURS = 24 * 60 * 60 * 1000;
-          if (Date.now() - (gameState.timestamp || 0) < TWENTY_FOUR_HOURS) {
-            setRoomId(gameState.roomId);
-            setImages(gameState.images || []);
-            setRoundResults(gameState.roundResults || []);
-            setHintsAllowed(gameState.hintsAllowed || 3);
-            setRoundTimerSec(gameState.roundTimerSec || 60);
-            setTotalGameAccuracy(gameState.totalGameAccuracy || 0);
-            setTotalGameXP(gameState.totalGameXP || 0);
-            console.log('Loaded saved game state:', gameState);
-          } else {
-            // Clear old game state
-            localStorage.removeItem('gh_current_game');
-          }
+        const savedState = loadPersistedState();
+        if (savedState) {
+          setGameId(savedState.gameId);
+          setRoomId(savedState.roomId);
+          setImages(savedState.images);
+          setRoundResults(savedState.roundResults);
+          setHintsAllowed(savedState.hintsAllowed);
+          setRoundTimerSec(savedState.roundTimerSec);
+          setTotalGameAccuracy(savedState.totalGameAccuracy);
+          setTotalGameXP(savedState.totalGameXP);
         }
       } catch (error) {
-        console.error('Error loading game state:', error);
-        localStorage.removeItem('gh_current_game');
+        setError(handleError(error, 'Failed to load previous game state'));
       }
     };
 
@@ -198,514 +344,222 @@ export const GameProvider: React.FC<GameProviderProps> = ({ children }) => {
             const xpValue = typeof metrics.xp_total === 'number' ? metrics.xp_total : 0;
             
             // Set state with verified numeric values
-            console.log(`[GameContext] [GameID: ${gameId || 'N/A'}] Updating global metrics for guest user:`, { 
-              previousAccuracy: globalAccuracy,
+            console.log(`[GameContext] [GameID: ${gameId || 'N/A'}] Updating global metrics for guest user:`, {
+
               newAccuracy: accuracyValue,
-              previousXP: globalXP,
+
               newXP: xpValue,
               source: 'guest-local-storage',
               timestamp: new Date().toISOString()
             });
             
-            setGlobalAccuracy(accuracyValue);
-            setGlobalXP(xpValue);
             return;
           } else {
-            console.log(`[GameContext] [GameID: ${gameId || 'N/A'}] Initializing new guest metrics`);
-            setGlobalAccuracy(0);
-            setGlobalXP(0);
-            const initialMetrics = {
-              user_id: guestUser.id,
-              xp_total: 0,
-              overall_accuracy: 0,
-              games_played: 0,
-              updated_at: new Date().toISOString()
-            };
-            localStorage.setItem(storageKey, JSON.stringify(initialMetrics));
-            return;
+            console.log('No guest metrics found in local storage.');
           }
-        } catch (e) {
-          console.error(`[GameContext] [GameID: ${gameId || 'N/A'}] Error parsing guest metrics:`, e);
+        } catch (parseError) {
+          console.error('Error parsing guest session or metrics from localStorage:', parseError);
+          setError({ code: 'PARSE_ERROR', message: 'Failed to parse guest session data' });
         }
       }
 
-      // If no guest session or error parsing it, try authenticated user
-      console.log(`[GameContext] [GameID: ${gameId || 'N/A'}] Fetching metrics for authenticated user`);
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) {
-        console.log(`[GameContext] [GameID: ${gameId || 'N/A'}] No authenticated user found, setting metrics to 0`);
-        setGlobalAccuracy(0);
-        setGlobalXP(0);
+      // If no guest session or metrics, try fetching from Supabase for authenticated user
+      const { data: { user }, error: authError } = await supabase.auth.getUser();
+      if (authError) {
+        console.error('Error fetching authenticated user:', authError);
+        setError({ code: 'AUTH_ERROR', message: 'Failed to fetch authenticated user for metrics' });
         return;
       }
-      
-      console.log(`[GameContext] [GameID: ${gameId || 'N/A'}] Fetching metrics for user ${user.id}`);
-      const { data: metrics, error: fetchError } = await supabase
-        .from('user_metrics')
-        .select('overall_accuracy, xp_total')
-        .eq('user_id', user.id)
-        .single();
-        
-      if (fetchError) {
-        if (fetchError.code === 'PGRST116') {
-          // No metrics found for user
-          console.log(`[GameContext] [GameID: ${gameId || 'N/A'}] No metrics found for user, initializing to 0`);
-          setGlobalAccuracy(0);
-          setGlobalXP(0);
-        } else {
-          console.error(`[GameContext] [GameID: ${gameId || 'N/A'}] Error fetching user metrics:`, fetchError);
+
+      if (user) {
+        const { data, error: fetchError } = await supabase
+          .from('user_metrics')
+          .select('*')
+          .eq('user_id', user.id)
+          .single();
+
+        if (fetchError) {
+          console.error('Error fetching user metrics from Supabase:', fetchError);
+          setError({ code: 'METRICS_ERROR', message: 'Failed to fetch user metrics', details: fetchError.message });
+          return;
         }
-        return;
-      }
-      
-      if (metrics) {
-        const newAccuracy = metrics.overall_accuracy || 0;
-        const newXP = metrics.xp_total || 0;
-        
-        console.log(`[GameContext] [GameID: ${gameId || 'N/A'}] Updating global metrics for user:`, {
-          userId: user.id,
-          previousAccuracy: globalAccuracy,
-          newAccuracy,
-          previousXP: globalXP,
-          newXP,
-          source: 'supabase-fetch',
-          timestamp: new Date().toISOString()
-        });
-        
-        setGlobalAccuracy(newAccuracy);
-        setGlobalXP(newXP);
+
+        if (data) {
+          setTotalGameAccuracy(data.overall_accuracy || 0);
+          setTotalGameXP(data.xp_total || 0);
+          console.log(`[GameContext] [GameID: ${gameId || 'N/A'}] Loaded global metrics for registered user:`, data);
+        }
       } else {
-        console.log(`[GameContext] [GameID: ${gameId || 'N/A'}] No metrics data returned from Supabase`);
-        setGlobalAccuracy(0);
-        setGlobalXP(0);
+        console.log('No authenticated user found for metrics.');
       }
     } catch (err) {
-      console.error(`[GameContext] [GameID: ${gameId || 'N/A'}] Error in fetchGlobalMetrics:`, err);
-      setGlobalAccuracy(0);
-      setGlobalXP(0);
-    }
-  }, []);
-
-  // Update game accuracy and XP whenever round results change
-  useEffect(() => {
-    console.log(`[GameContext] [GameID: ${gameId || 'N/A'}] Recalculating game accuracy and XP from round results`);
-    
-    if (roundResults.length === 0) {
-      console.log(`[GameContext] [GameID: ${gameId || 'N/A'}] No round results, resetting accuracy and XP to 0`);
-      setTotalGameAccuracy(0);
-      setTotalGameXP(0);
-      return;
-    }
-    
-    // Calculate total XP from all rounds
-    const xpSum = roundResults.reduce((sum, result, index) => {
-      const score = result.score || 0;
-      console.log(`[GameContext] [GameID: ${gameId || 'N/A'}] Round ${index + 1} XP:`, {
-        round: index + 1,
-        score,
-        xpWhere: result.xpWhere,
-        xpWhen: result.xpWhen
-      });
-      return sum + score;
-    }, 0);
-    
-    console.log(`[GameContext] [GameID: ${gameId || 'N/A'}] Total game XP from rounds:`, xpSum);
-    setTotalGameXP(xpSum);
-    
-    // Calculate per-round percentages
-    const roundPercentages = roundResults.map((result, index) => {
-      let roundPct: number;
-      
-      // Check if xpWhere and xpWhen are available
-      if (result.xpWhere !== undefined && result.xpWhen !== undefined) {
-        // Use the formula: roundPct = Math.min(100, Math.round(((xpWhere + xpWhen)/200)*100))
-        roundPct = Math.min(100, Math.round(((result.xpWhere + result.xpWhen) / 200) * 100));
-        console.log(`[GameContext] [GameID: ${gameId || 'N/A'}] Round ${index + 1} percentage (from xpWhere/xpWhen):`, {
-          xpWhere: result.xpWhere,
-          xpWhen: result.xpWhen,
-          calculatedPct: roundPct
-        });
-      } else {
-        // Fallback to previous calculation method using score
-        const maxRoundScore = 1000;
-        roundPct = result.score ? Math.round((result.score / maxRoundScore) * 100) : 0;
-        roundPct = Math.min(100, roundPct); // Cap at 100%
-        console.log(`[GameContext] [GameID: ${gameId || 'N/A'}] Round ${index + 1} percentage (from score):`, {
-          score: result.score,
-          maxScore: maxRoundScore,
-          calculatedPct: roundPct
-        });
-      }
-      
-      return roundPct;
-    });
-    
-    // Calculate average of all round percentages
-    const avgPercentage = roundPercentages.length > 0
-      ? roundPercentages.reduce((sum, pct) => sum + pct, 0) / roundPercentages.length
-      : 0;
-    
-    // Round and cap at 100%
-    const finalAccuracy = Math.min(100, Math.round(avgPercentage));
-    
-    console.log(`[GameContext] [GameID: ${gameId || 'N/A'}] Final game accuracy calculation:`, {
-      roundPercentages,
-      avgPercentage,
-      finalAccuracy,
-      totalRounds: roundResults.length
-    });
-    
-    setTotalGameAccuracy(finalAccuracy);
-    
-  }, [roundResults]);
-  
-  // Add a refreshGlobalMetrics function to force a metrics refresh
-  const refreshGlobalMetrics = useCallback(async () => {
-    console.log(`[GameContext] [GameID: ${gameId || 'N/A'}] refreshGlobalMetrics called`);
-    const startTime = performance.now();
-    try {
-      await fetchGlobalMetrics();
-      console.log(`[GameContext] [GameID: ${gameId || 'N/A'}] refreshGlobalMetrics completed in ${performance.now() - startTime}ms`);
-    } catch (error) {
-      console.error(`[GameContext] [GameID: ${gameId || 'N/A'}] Error in refreshGlobalMetrics:`, error);
-      throw error;
-    }
-  }, [fetchGlobalMetrics]);
-
-  // Fetch global metrics on initial load
-  useEffect(() => {
-    fetchGlobalMetrics();
-  }, [fetchGlobalMetrics]);
-
-  // Log gameId whenever it changes for debugging
-  useEffect(() => {
-    if (gameId) {
-      console.log(`[GameContext] [GameID: ${gameId}] Game ID state updated.`);
+      console.error('Unexpected error in fetchGlobalMetrics:', err);
+      setError({ code: 'METRICS_ERROR', message: 'An unexpected error occurred while fetching global metrics' });
     }
   }, [gameId]);
 
-  // Load game settings from localStorage on initial load
-  useEffect(() => {
+  // Refresh global metrics (e.g., after a game ends)
+  const refreshGlobalMetrics = useCallback(async () => {
+    await fetchGlobalMetrics();
+  }, [fetchGlobalMetrics]);
+
+  // Function to start a new game
+  const startGame = useCallback(async (mode: 'solo' | 'multi', existingGameId?: string) => {
+    setIsLoading(true);
+    setError(null);
+    setRoundResults([]); // Clear previous round results
+    setTotalGameAccuracy(0);
+    setTotalGameXP(0);
+
     try {
-      const savedSettings = localStorage.getItem('globalGameSettings');
-      if (savedSettings) {
-        const parsed = JSON.parse(savedSettings);
-        if (parsed.timerSeconds !== undefined) {
-          setRoundTimerSec(parsed.timerEnabled ? parsed.timerSeconds : 0);
-          console.log(`Loaded timer settings from localStorage: ${parsed.timerEnabled ? parsed.timerSeconds : 0}s`);
-        }
-        if (parsed.hintsPerGame !== undefined) {
-          setHintsAllowed(parsed.hintsPerGame);
-          console.log(`Loaded hints settings from localStorage: ${parsed.hintsPerGame} hints`);
-        }
+      let newGameId = existingGameId;
+      let newRoomId = existingGameId;
+
+      if (!newGameId) {
+        // Generate a new game ID if not provided (for solo games)
+        newGameId = `temp_${uuidv4()}`;
+        newRoomId = newGameId; // For solo games, roomId is the same as gameId
       }
-    } catch (error) {
-      console.error('Error loading game settings from localStorage:', error);
+
+      // Fetch images for the game
+      const { data: imagesData, error: imagesError } = await supabase
+        .from('images')
+        .select('*')
+        .limit(5); // Fetch 5 images for the game
+
+      if (imagesError) {
+        throw new Error(`Failed to fetch game images: ${imagesError.message}`);
+      }
+      if (!imagesData || imagesData.length === 0) {
+        throw new Error('No images found to start the game.');
+      }
+
+      const gameImages: GameImage[] = imagesData.map(img => ({
+        id: img.id,
+        title: img.title,
+        description: img.description,
+        latitude: img.latitude,
+        longitude: img.longitude,
+        year: img.year,
+        image_url: img.image_url,
+        location_name: img.location_name,
+      }));
+
+      setImages(gameImages);
+      setGameId(newGameId);
+      setRoomId(newRoomId);
+
+      // If it's a multi-player game or a registered game, create an entry in the 'games' table
+      if (mode === 'multi' || !newGameId.startsWith('temp_')) {
+        const { data: gameData, error: gameCreationError } = await supabase
+          .from('games')
+          .insert({
+            current_round: 1,
+            round_count: 5,
+            mode: mode,
+          })
+          .select()
+          .single();
+
+        if (gameCreationError) {
+          throw new Error(`Failed to create game entry: ${gameCreationError.message}`);
+        }
+        console.log('Game created in DB:', gameData);
+      }
+
+      console.log(`Game started with ID: ${newGameId}, Room ID: ${newRoomId}`);
+    } catch (err: any) {
+      console.error('Error starting game:', err);
+      setError({ code: 'GAME_START_ERROR', message: err.message || 'Failed to start game' });
+      setGameId(null);
+      setRoomId(null);
+      setImages([]);
+    } finally {
+      setIsLoading(false);
     }
   }, []);
 
-  // Function to join an existing game by ID
-  const joinGame = useCallback(async (existingGameId: string, settings?: { timerSeconds?: number; hintsPerGame?: number }) => {
-    console.log(`Joining existing game with ID: ${existingGameId}`);
-    setIsLoading(true);
-    setError(null);
-    setImages([]); // Clear previous images
-    setRoundResults([]); // Clear previous results
-    
-    applyGameSettings(settings);
-    
-    try {
-      // First, try to get the game data from Supabase
-      console.log(`Fetching game data for game ID: ${existingGameId}`);
-      const { data: gameData, error: gameError } = await supabase
-        .from('games')
-        .select('*')
-        .eq('game_id', existingGameId)
-        .single();
-      
-      if (gameError) {
-        console.error(`Error fetching game with ID ${existingGameId}:`, gameError);
-        throw new Error(`Failed to join game: ${gameError.message}`);
-      }
-      
-      if (!gameData) {
-        throw new Error(`Game with ID ${existingGameId} not found`);
-      }
-      
-      // Set the game ID and room ID
-      setGameId(existingGameId);
-      setRoomId(gameData.room_id);
-      console.log(`Joined game with ID: ${existingGameId}, Room ID: ${gameData.room_id}`);
-      
-      // Fetch the images using the stored image IDs
-      const imageIds = gameData.image_ids;
-      if (!imageIds || !Array.isArray(imageIds) || imageIds.length < 5) {
-        throw new Error('Invalid image data for this game');
-      }
-      
-      console.log(`Fetching ${imageIds.length} images for game ${existingGameId}`);
-      const { data: gameImages, error: imagesError } = await supabase
-        .from('images')
-        .select('id, title, description, latitude, longitude, year, image_url, location_name')
-        .in('id', imageIds);
-      
-      if (imagesError) {
-        console.error("Error fetching game images:", imagesError);
-        throw new Error(`Failed to fetch game images: ${imagesError.message}`);
-      }
-      
-      if (!gameImages || gameImages.length < 5) {
-        throw new Error(`Could not retrieve all images for this game`);
-      }
-      
-      // Sort the images in the same order as the stored image IDs
-      const orderedImages = imageIds.map(id => 
-        gameImages.find(img => img.id === id)
-      ).filter(Boolean) as any[];
-      
-      // Process the images
-      const processedImages = await Promise.all(
-        orderedImages.map(async (img) => {
-          let finalUrl = img.image_url;
-          if (finalUrl && !finalUrl.startsWith('http')) {
-            // Assume image_url is a path in Supabase storage
-            const { data: urlData } = supabase.storage.from('images').getPublicUrl(finalUrl);
-            finalUrl = urlData?.publicUrl || 'placeholder.jpg'; // Use placeholder if URL fails
-          } else if (!finalUrl) {
-              finalUrl = 'placeholder.jpg'; // Use placeholder if image_url is null/empty
-          }
-          
-          return {
-            id: img.id,
-            title: img.title || 'Untitled',
-            description: img.description || 'No description.',
-            latitude: img.latitude || 0,
-            longitude: img.longitude || 0,
-            year: img.year || 0,
-            image_url: img.image_url, // Keep original image_url if needed elsewhere
-            location_name: img.location_name || 'Unknown Location',
-            url: finalUrl // Final processed URL for display
-          } as GameImage;
-        })
-      );
-      
-      setImages(processedImages);
-      console.log(`Loaded ${processedImages.length} images for game ${existingGameId}`);
-      
-      // Set loading to false
-      setIsLoading(false);
-      
-      // Navigate to the first round
-      setTimeout(() => {
-        navigate(`/test/game/room/${gameData.room_id}/round/1`);
-      }, 100);
-      
-    } catch (err) {
-      console.error("Error in joinGame:", err);
-      setError(err instanceof Error ? err.message : 'An unknown error occurred');
-      setIsLoading(false);
-      alert('Failed to join game. Please try again.');
+  const recordRoundResult = useCallback(async (roundData: Omit<RoundResult, 'imageId' | 'actualCoordinates' | 'roundIndex' | 'timeTakenSeconds'> & { roundIndex: number; imageId: string; actualCoordinates: { lat: number; lng: number; }; timeTakenSeconds: number; }) => {
+    if (!gameId) {
+      console.error('Cannot record round result: Game not initialized');
+      setError({ code: 'GAME_STATE_ERROR', message: 'Cannot record round result: Game not initialized' });
+      return false;
     }
-  }, [applyGameSettings, navigate]);
-  
-  // Function to fetch images and start a new game
-  const startGame = useCallback(async (settings?: { timerSeconds?: number; hintsPerGame?: number }, existingGameId?: string) => {
-    console.log("Starting new game...");
-    
-    // If an existing game ID is provided, join that game instead
-    if (existingGameId) {
-      return joinGame(existingGameId, settings);
-    }
-    
-    clearSavedGameState(); // Clear any existing saved state
-    setIsLoading(true);
-    setError(null);
-    setImages([]); // Clear previous images
-    setRoundResults([]); // Clear previous results
-    
-    applyGameSettings(settings);
-    
-    try {
-      // Generate a simple unique room ID for this session
-      const newRoomId = `room_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
-      const newGameId = uuidv4(); // Generate unique game ID
-      setGameId(newGameId);
-      console.log(`[GameContext] [GameID: ${newGameId}] Starting new game, roomId: ${newRoomId}`);
-      setRoomId(newRoomId);
-      console.log(`Generated Room ID: ${newRoomId}`);
 
-      // Fetch a larger batch of images (e.g., 20) without specific ordering
-      console.log("Fetching batch of images from Supabase...");
-      const { data: imageBatch, error: fetchError } = await supabase
-        .from('images')
-        // Select fields that exist in the DB schema
-        .select('id, title, description, latitude, longitude, year, image_url, location_name') 
-        // Only fetch production-ready images
-        .eq('ready', true)
-        // Remove the .order() clause
-        .limit(20); // Fetch more images than needed
-        
-      if (fetchError) {
-        console.error("Error fetching images:", fetchError);
-        throw new Error(`Failed to fetch images: ${fetchError.message}`);
-      }
-
-      if (!imageBatch || imageBatch.length < 5) {
-        // Handle case where not enough images are found (even in the larger batch)
-        console.warn("Could not fetch at least 5 images, fetched:", imageBatch?.length);
-        throw new Error(`Database only contains ${imageBatch?.length || 0} images. Need 5 to start.`);
-      }
-
-      console.log(`Fetched ${imageBatch.length} images initially.`);
-
-      // Shuffle the fetched images
-      const shuffledBatch = shuffleArray(imageBatch);
-
-      // Select the first 5 images from the shuffled batch
-      const selectedImages = shuffledBatch.slice(0, 5);
-      console.log(`Selected 5 images after shuffling.`);
-
-      // Store the selected image IDs to ensure the same images can be used by others
-      const selectedImageIds = selectedImages.map(img => img.id);
-
-      // Process the selected 5 images
-      const processedImages = await Promise.all(
-        selectedImages.map(async (img) => {
-          let finalUrl = img.image_url;
-          if (finalUrl && !finalUrl.startsWith('http')) {
-            // Assume image_url is a path in Supabase storage
-            const { data: urlData } = supabase.storage.from('images').getPublicUrl(finalUrl);
-            finalUrl = urlData?.publicUrl || 'placeholder.jpg'; // Use placeholder if URL fails
-          } else if (!finalUrl) {
-              finalUrl = 'placeholder.jpg'; // Use placeholder if image_url is null/empty
-          }
-          
-          return {
-            id: img.id,
-            title: img.title || 'Untitled',
-            description: img.description || 'No description.',
-            latitude: img.latitude || 0,
-            longitude: img.longitude || 0,
-            year: img.year || 0,
-            image_url: img.image_url, // Keep original image_url if needed elsewhere
-            location_name: img.location_name || 'Unknown Location',
-            url: finalUrl // Final processed URL for display
-          } as GameImage;
-        })
-      );
-      
-      // Save the game data to Supabase so others can join the same game
-      console.log(`Saving game data with ID: ${newGameId}`);
-      const { error: saveError } = await supabase.from('games').insert({
-        game_id: newGameId,
-        room_id: newRoomId,
-        image_ids: selectedImageIds,
-        created_at: new Date().toISOString(),
-        settings: {
-          hintsAllowed,
-          roundTimerSec
-        }
-      });
-      
-      if (saveError) {
-        console.error("Error saving game data:", saveError);
-        // Continue anyway - the game can still be played by the current user
-        console.warn("Game will continue but might not be joinable by others.");
-      } else {
-        console.log(`Game data saved successfully with ID: ${newGameId}`);
-      }
-
-      setImages(processedImages);
-      console.log("Selected 5 images stored in context:", processedImages);
-
-      // Save game settings to local storage for persistence
-      localStorage.setItem('gh_game_settings', JSON.stringify({
-        hintsAllowed,
-        roundTimerSec
-      }));
-
-      console.log(`Game settings: ${hintsAllowed} hints, ${roundTimerSec}s timer`);
-      
-      // Set loading to false before navigation to prevent UI issues
-      setIsLoading(false);
-      
-      // Navigate to the first round - ensure this matches the route in App.tsx
-      console.log(`[GameContext] [GameID: ${gameId || newGameId}] Navigating to round 1 for room ${newRoomId}`);
-      // Use a setTimeout to ensure state updates have completed before navigation
-      setTimeout(() => {
-        navigate(`/test/game/room/${newRoomId}/round/1`);
-      }, 100);
-
-    } catch (err) {
-      console.error("Error in startGame:", err);
-      setError(err instanceof Error ? err.message : 'An unknown error occurred');
-      setIsLoading(false);
-      alert('Failed to start game. Please try again.');
-    }
-  }, [navigate, hintsAllowed, roundTimerSec, clearSavedGameState]);
-
-  // Function to record the result of a round
-  const recordRoundResult = useCallback((resultData: Omit<RoundResult, 'roundIndex' | 'imageId' | 'actualCoordinates'>, currentRoundIndex: number) => {
-    if (currentRoundIndex < 0 || currentRoundIndex >= images.length) {
-        console.error("Cannot record result for invalid round index:", currentRoundIndex);
-        return;
-    }
-    const currentImage = images[currentRoundIndex];
-    
-    // Calculate xpWhere and xpWhen if score is available but they aren't
-    let xpWhere = resultData.xpWhere;
-    let xpWhen = resultData.xpWhen;
-    
-    if (resultData.score && (xpWhere === undefined || xpWhen === undefined)) {
-        // Use 70% of score for xpWhere and 30% for xpWhen, as seen in RoundResultsPage.tsx
-        xpWhere = Math.round(resultData.score * 0.7);
-        xpWhen = Math.round(resultData.score * 0.3);
-        console.log(`Calculated xpWhere (${xpWhere}) and xpWhen (${xpWhen}) from score ${resultData.score}`);
-    }
-    
-    const fullResult: RoundResult = {
-        roundIndex: currentRoundIndex,
-        imageId: currentImage.id,
-        actualCoordinates: { lat: currentImage.latitude, lng: currentImage.longitude },
-        guessCoordinates: resultData.guessCoordinates,
-        distanceKm: resultData.distanceKm,
-        score: resultData.score,
-        guessYear: resultData.guessYear,
-        xpWhere,
-        xpWhen,
+    const newResult: RoundResult = {
+      ...roundData,
+      imageId: roundData.imageId,
+      actualCoordinates: roundData.actualCoordinates,
+      roundIndex: roundData.roundIndex,
+      timeTakenSeconds: roundData.timeTakenSeconds,
     };
 
-    console.log(`[GameContext] [GameID: ${gameId || 'N/A'}] Recording result for round ${currentRoundIndex + 1}:`, fullResult);
-    setRoundResults(prevResults => {
-        // Avoid duplicates - replace if already exists for this index
-        const existingIndex = prevResults.findIndex(r => r.roundIndex === currentRoundIndex);
-        if (existingIndex !== -1) {
-            const updatedResults = [...prevResults];
-            updatedResults[existingIndex] = fullResult;
-            return updatedResults;
-        } else {
-            return [...prevResults, fullResult];
+    setRoundResults(prevResults => [...prevResults, newResult]);
+
+    // Update total game accuracy and XP
+    setTotalGameAccuracy(prev => prev + (newResult.accuracy || 0));
+    setTotalGameXP(prev => prev + (newResult.score || 0));
+
+    // If it's a temporary game, store results in session storage
+    if (gameId.startsWith('temp_')) {
+      const tempGameResults = JSON.parse(sessionStorage.getItem(`temp_game_${gameId}_results`) || '[]');
+      tempGameResults.push(newResult);
+      sessionStorage.setItem(`temp_game_${gameId}_results`, JSON.stringify(tempGameResults));
+      return true;
+    } else {
+      // For registered games, save to Supabase
+      try {
+        const { error: insertError } = await supabase
+          .from('game_rounds')
+          .insert({
+            game_id: gameId,
+            round_index: newResult.roundIndex,
+            image_id: newResult.imageId,
+            guess_coordinates: newResult.guessCoordinates,
+            actual_coordinates: newResult.actualCoordinates,
+            distance_km: newResult.distanceKm,
+            score: newResult.score,
+            guess_year: newResult.guessYear,
+            xp_where: newResult.xpWhere,
+            xp_when: newResult.xpWhen,
+            accuracy: newResult.accuracy,
+            hints_used: newResult.hintsUsed,
+            time_taken_seconds: newResult.timeTakenSeconds
+          });
+
+        if (insertError) {
+          console.error('Error inserting round result into Supabase:', insertError);
+          setError({ code: 'GAME_ERROR', message: `Failed to save round result: ${insertError.message}` });
+          return false;
         }
-    });
-  }, [images]); // Dependency on images to get actual coordinates
+        console.log('Round result saved to Supabase:', newResult);
+        return true;
+      } catch (err: any) {
+        console.error('Unexpected error saving round result:', err);
+        setError({ code: 'GAME_ERROR', message: err.message || 'Failed to save round result' });
+        return false;
+      }
+    }
+  }, [gameId, setRoundResults, setTotalGameAccuracy, setTotalGameXP]);
 
-  // Function to reset game state
   const resetGame = useCallback(() => {
-    console.log(`[GameContext] [GameID: ${gameId || 'N/A'}] Resetting game state...`);
-    clearSavedGameState();
+    setGameId(null);
     setRoomId(null);
-    setGameId(null); // Reset gameId
     setImages([]);
-    setRoundResults([]); // Clear results on reset
-    setError(null);
+    setRoundResults([]);
     setIsLoading(false);
-    // Optionally navigate home or to a new game setup screen
-    // navigate('/'); // Example: navigate home
-  }, [clearSavedGameState]);
+    setError(null);
+    setHintsAllowed(3);
+    setRoundTimerSec(timerSeconds || 60);
+    setTotalGameAccuracy(0);
+    setTotalGameXP(0);
+    clearSavedGameState();
+  }, [clearSavedGameState, timerSeconds]);
 
-  // Value provided by the context
-  const value: GameContextState = {
-    gameId, // Provide gameId in context
+  // --- CONTEXT VALUES ---
+  // Memoize state context value
+  const stateValue = useMemo(() => ({
+    gameId,
     roomId,
     images,
     roundResults,
@@ -714,69 +568,51 @@ export const GameProvider: React.FC<GameProviderProps> = ({ children }) => {
     hintsAllowed,
     roundTimerSec,
     totalGameAccuracy,
-    totalGameXP,
-    globalAccuracy,
-    globalXP,
+    totalGameXP
+  }), [
+    gameId,
+    roomId,
+    images,
+    roundResults,
+    isLoading,
+    error,
+    hintsAllowed,
+    roundTimerSec,
+    totalGameAccuracy,
+    totalGameXP
+  ]);
+
+  // Memoize actions context value
+  const actionsValue = useMemo(() => ({
+    setGameId,
+    setRoomId,
+    setImages,
+    setRoundResults,
+    setIsLoading,
+    setError,
     setHintsAllowed,
     setRoundTimerSec: handleSetRoundTimerSec,
+    setTotalGameAccuracy,
+    setTotalGameXP,
     startGame,
     recordRoundResult,
     resetGame,
     fetchGlobalMetrics,
-    refreshGlobalMetrics // Add this line
-  };
+    refreshGlobalMetrics
+  }), [
+    handleSetRoundTimerSec,
+    startGame,
+    recordRoundResult,
+    resetGame,
+    fetchGlobalMetrics,
+    refreshGlobalMetrics
+  ]);
 
-  return <GameContext.Provider value={value}>{children}</GameContext.Provider>;
+  return (
+    <GameStateContext.Provider value={stateValue}>
+      <GameActionsContext.Provider value={actionsValue}>
+        {children}
+      </GameActionsContext.Provider>
+    </GameStateContext.Provider>
+  );
 };
-
-// Custom hook to use the GameContext
-export const useGame = (): GameContextState => { // Ensure hook returns the full state type
-  const context = useContext(GameContext);
-  if (context === undefined) {
-    throw new Error('useGame must be used within a GameProvider');
-  }
-  return context;
-};
-
-// Note: We've moved distance and score calculation to gameCalculations.ts
-// These functions are kept here for backward compatibility but marked as deprecated
-
-/**
- * @deprecated Use calculateDistanceKm from gameCalculations.ts instead
- */
-export function calculateDistance(lat1: number, lon1: number, lat2: number, lon2: number): number {
-  console.warn('calculateDistance is deprecated. Use calculateDistanceKm from gameCalculations.ts instead');
-  const R = 6371; // Radius of the Earth in km
-  const dLat = deg2rad(lat2 - lat1);
-  const dLon = deg2rad(lon2 - lon1);
-  const a =
-    Math.sin(dLat / 2) * Math.sin(dLat / 2) +
-    Math.cos(deg2rad(lat1)) * Math.cos(deg2rad(lat2)) *
-    Math.sin(dLon / 2) * Math.sin(dLon / 2);
-  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-  const distance = R * c; // Distance in km
-  return distance;
-}
-
-function deg2rad(deg: number): number {
-  return deg * (Math.PI / 180);
-}
-
-/**
- * @deprecated Use calculateRoundScore from gameCalculations.ts instead
- */
-export function calculateScore(distanceKm: number): number {
-    console.warn('calculateScore is deprecated. Use calculateRoundScore from gameCalculations.ts instead');
-    const maxDistanceForPoints = 2000; // Max distance (km) where points are awarded
-    const maxScore = 5000;
-
-    if (distanceKm < 0) return 0; // Should not happen
-    if (distanceKm === 0) return maxScore; // Perfect guess
-    if (distanceKm > maxDistanceForPoints) return 0;
-
-    // Example: Linear decrease (you could use logarithmic, exponential, etc.)
-    const score = Math.round(maxScore * (1 - distanceKm / maxDistanceForPoints));
-
-    // Ensure score is within bounds [0, maxScore]
-    return Math.max(0, Math.min(score, maxScore));
-} 

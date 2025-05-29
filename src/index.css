@@ -4,28 +4,11 @@
 @tailwind components;
 @tailwind utilities;
 
-@layer base {
-  :root {
-    --background: 0 0% 100%;
-    --foreground: 0 0% 10%;
-  }
-  
-  .dark {
-    --background: 0 0% 10%;
-    --foreground: 0 0% 98%;
-  }
-}
 
-/* Force light theme by default */
-:root {
-  color-scheme: light;
-  --color-scheme: light;
-}
 
 /* Apply theme colors to the document */
 html {
   @apply bg-background text-foreground;
-  color-scheme: light;
 }
 
 @layer base {

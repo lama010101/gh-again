@@ -1,4 +1,3 @@
-
 import React, { useState } from 'react';
 import Popup from '@/components/ui/Popup';
 import { Button } from "@/components/ui/button";
@@ -11,18 +10,11 @@ interface HintModalProps {
   selectedHintType: HintType;
   hintContent: string | null;
   onSelectHint: (type: HintType) => void;
-}
-
-interface HintModalProps {
-  isOpen: boolean;
-  onOpenChange: (open: boolean) => void;
-  selectedHintType: HintType;
-  hintContent: string | null;
-  onSelectHint: (type: HintType) => void;
   hintsUsedThisRound: number;
   hintsUsedTotal: number;
   HINTS_PER_ROUND: number;
   HINTS_PER_GAME: number;
+  image: { url: string; title: string; };
 }
 
 const HintModal = ({ 
@@ -34,7 +26,8 @@ const HintModal = ({
   hintsUsedThisRound,
   hintsUsedTotal,
   HINTS_PER_ROUND,
-  HINTS_PER_GAME
+  HINTS_PER_GAME,
+  image
 }: HintModalProps) => {
   const [loadingHint, setLoadingHint] = useState<HintType | null>(null);
 

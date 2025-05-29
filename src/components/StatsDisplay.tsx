@@ -10,7 +10,7 @@ import { Badge } from "@/components/ui/badge";
 import { useGame } from '@/contexts/GameContext';
 
 export const StatsDisplay = () => {
-  const { globalAccuracy, globalXP } = useGame();
+
 
   return (
     <div className="flex items-center gap-6 text-white/80">
@@ -20,7 +20,7 @@ export const StatsDisplay = () => {
             <div className="flex items-center gap-2">
               <Badge variant="accuracy" className="flex items-center gap-1 text-sm">
                 <Target className="h-4 w-4" />
-                <span>{Math.round(globalAccuracy)}%</span>
+
               </Badge>
             </div>
           </TooltipTrigger>
@@ -34,7 +34,7 @@ export const StatsDisplay = () => {
             <div className="flex items-center gap-2">
               <Badge variant="xp" className="flex items-center gap-1 text-sm">
                 <Zap className="h-4 w-4" />
-                <span>{globalXP.toLocaleString()}</span>
+
               </Badge>
             </div>
           </TooltipTrigger>

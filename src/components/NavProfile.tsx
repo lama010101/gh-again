@@ -1,7 +1,7 @@
-import { useState, useEffect } from "react";
+import { useState } from "react";
+import { useNavigate, Link } from "react-router-dom";
+import { useTheme } from "next-themes";
 import { useAuth } from "@/contexts/AuthContext";
-import { useGame } from "@/contexts/GameContext";
-import { useLogs } from "@/contexts/LogContext";
 import { AuthModal } from "@/components/AuthModal";
 import { Button } from "@/components/ui/button";
 import {
@@ -28,41 +28,21 @@ import {
   Bug,
   LayoutDashboard
 } from "lucide-react";
-import { Link, useNavigate } from "react-router-dom";
 
 export const NavProfile = () => {
-  const { user, signOut, isGoogleUser } = useAuth();
-  const { globalXP, globalAccuracy, fetchGlobalMetrics } = useGame();
-  const { openLogWindow } = useLogs();
+  const { user, signOut } = useAuth();
   const [showAuthModal, setShowAuthModal] = useState(false);
   const navigate = useNavigate();
-  
+  const { theme, setTheme } = useTheme();
+
   const handleSignOut = async () => {
     try {
       await signOut();
-      navigate('/test');
+      navigate('/');
     } catch (error) {
       console.error('Error signing out:', error);
     }
   };
-  
-  // Fetch global metrics when the component mounts, when user changes, and periodically
-  useEffect(() => {
-    if (user) {
-      // Initial fetch
-      console.log('NavProfile: Fetching global metrics for user', user.id);
-      fetchGlobalMetrics();
-      
-      // Set up periodic refresh every 5 seconds to ensure we always have latest scores
-      const refreshInterval = setInterval(() => {
-        fetchGlobalMetrics()
-          .catch(err => console.error('Error refreshing global metrics in NavProfile:', err));
-      }, 5000);
-      
-      // Clean up interval on unmount
-      return () => clearInterval(refreshInterval);
-    }
-  }, [user, fetchGlobalMetrics]);
 
   if (!user) {
     return (
@@ -169,8 +149,8 @@ export const NavProfile = () => {
           </DropdownMenuItem>
         )}
         <DropdownMenuItem
-          onClick={() => signOut()}
-          className="text-red-600 focus:text-red-600"
+          onClick={handleSignOut}
+          className="text-red-600 focus:text-red-600 cursor-pointer"
         >
           Sign Out
         </DropdownMenuItem>

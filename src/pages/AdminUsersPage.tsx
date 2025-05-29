@@ -8,6 +8,7 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { toast } from '@/components/ui/sonner';
 import { Search, User, AlertCircle, Edit, Trash2 } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
+import { AuthUser, GuestUser } from '@/contexts/AuthContext';
 
 interface UserProfile {
   id: string;
@@ -27,10 +28,10 @@ const AdminUsersPage = () => {
   const { user } = useAuth();
 
 // Helper: check admin
-const isAdmin = (user: any) => {
+const isAdmin = (user: AuthUser | GuestUser | null) => {
   // Supabase user_metadata may have is_admin, or fallback to profile
   return (
-    (user && (user.is_admin || user.user_metadata?.is_admin)) || false
+    (user && user.type === 'auth' && user.user_metadata?.is_admin) || false
   );
 };
   const [users, setUsers] = useState<UserProfile[]>([]);

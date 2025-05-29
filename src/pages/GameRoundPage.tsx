@@ -1,11 +1,13 @@
-import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
-import { useEffect, useState, useCallback } from 'react';
+import { useNavigate, useParams } from 'react-router-dom';
+import { useEffect, useState, useCallback, useMemo } from 'react';
 import GameLayout1 from "@/components/layouts/GameLayout1";
 import { Loader, MapPin } from "lucide-react";
-import { useGame, GuessCoordinates } from '@/contexts/GameContext';
-import { useToast } from "@/components/ui/use-toast";
+import { useGameState, useGameActions } from '@/contexts/GameContext'; // Keep for startGame, etc.
+import { useToast } from '@/components/ui/use-toast';
+// GuessCoordinates will come from @/types/game via useGameRound
+// Calculation utils will be used within useGameRound
+import SegmentedProgressBar from '@/components/ui/segmented-progress-bar';
 import { Button } from '@/components/ui/button';
-import { SegmentedProgressBar } from '@/components/ui';
 import {
   Tooltip,
   TooltipContent,
@@ -13,451 +15,232 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 import { ConfirmNavigationDialog } from '@/components/game/ConfirmNavigationDialog';
-import { useHint, HINT_PENALTY } from '@/hooks/useHint';
-import { 
-  calculateDistanceKm, 
-  calculateRoundScore, 
-  calculateTimeXP, 
-  calculateLocationXP, 
-  ROUNDS_PER_GAME 
-} from '@/utils/gameCalculations';
+import { useHint } from '@/hooks/useHint'; // HINT_PENALTY is used in useGameRound
+import { useGameRound } from '@/hooks/useGameRound';
+import { useGameTimer } from '@/hooks/useGameTimer';
 
-// Rename component
-const GameRoundPage = () => {
+interface GameRoundPageProps {
+  mode?: 'solo' | 'multi';
+}
+
+const ROUNDS_PER_GAME = 5; 
+const ROUND_TIME_SECONDS = 60; 
+
+const GameRoundPage: React.FC<GameRoundPageProps> = ({ mode: initialMode = 'solo' }) => {
   const navigate = useNavigate();
-  const { roomId: paramRoomId, roundNumber: roundNumberStr } = useParams<{ roomId: string; roundNumber: string }>();
-  const [searchParams] = useSearchParams();
-  
-  // Get game ID from URL query parameters (for direct game links)
-  const gameIdFromQuery = searchParams.get('id');
-  const gameMode = searchParams.get('mode');
-  
-  // Use query param ID if available, otherwise use the roomId from the path parameters
-  const roomId = gameIdFromQuery || paramRoomId;
-  
-  const [showConfirmDialog, setShowConfirmDialog] = useState(false);
-  const [pendingNavigation, setPendingNavigation] = useState<(() => void) | null>(null);
+  const { roundNumber: roundNumberStr, roomId: paramRoomId } = useParams<{ 
+    roundNumber?: string; 
+    roomId?: string 
+  }>();
 
-  const handleNavigateHome = useCallback(() => {
-    console.log("Attempting to navigate to /test"); // Added log
-    navigate('/test');
-    console.log("Called navigate('/test')"); // Added log
-  }, [navigate]);
-
-  const confirmNavigation = useCallback((navigateTo: () => void) => {
-    setPendingNavigation(() => navigateTo);
-    setShowConfirmDialog(true);
-  }, []);
-
-  const handleConfirmNavigation = useCallback(() => {
-    setShowConfirmDialog(false);
-    if (pendingNavigation) {
-      pendingNavigation();
-    }
-  }, [pendingNavigation]);
-
-  const gameContext = useGame();
-  
-  // Safely destructure with defaults to prevent undefined errors
-  const {
-    images = [],
-    isLoading: isContextLoading = true,
-    error: contextError = null,
-    roomId: contextRoomId = '',
-    recordRoundResult = () => {},
-    roundTimerSec = 0,
-    totalGameAccuracy = 0,
-    totalGameXP = 0,
-    globalXP = 0 // Add default value for globalXP
-  } = gameContext || {};
   const { toast } = useToast();
+  const { startGame, fetchGlobalMetrics, refreshGlobalMetrics } = useGameActions();
+  const { 
+    isLoading: isContextLoading, 
+    error: contextError, 
+    roundTimerSec, 
+    hintsAllowed, 
+    totalGameAccuracy, 
+    totalGameXP, 
+    gameId 
+  } = useGameState();
 
   const roundNumber = parseInt(roundNumberStr || '1', 10);
-  const currentRoundIndex = roundNumber - 1;
+  const effectiveRoomId = paramRoomId || gameId;
 
-  const [currentGuess, setCurrentGuess] = useState<GuessCoordinates | null>(null);
-  const [isSubmitting, setIsSubmitting] = useState(false);
-  const [selectedYear, setSelectedYear] = useState(1932);
-  const [remainingTime, setRemainingTime] = useState<number>(roundTimerSec > 0 ? roundTimerSec : 300);
-  const [isTimerActive, setIsTimerActive] = useState<boolean>(roundTimerSec > 0);
-  const [hasTimedOut, setHasTimedOut] = useState<boolean>(false);
-  const [hasGuessedLocation, setHasGuessedLocation] = useState<boolean>(false);
+  const [isRoundTimerActive, setIsRoundTimerActive] = useState(true);
+  const {
+    currentGuess,
+    selectedYear,
+    isSubmitting,
+    // isTimerActive is now managed locally as isRoundTimerActive
+    hintsUsedThisRound, // This will be reset by useGameRound internally
+    imageForRound,
+    currentRoundIndex,
+    tooltipOpen,
+    hasGuessedLocation, // Needed for GameLayout1
+    handleMapClick,
+    handleYearSelect,
+    handleUseHint,
+    handleSubmitGuess,
+  } = useGameRound({
+    roundNumber,
+    effectiveRoomId
+  });
 
-  // Get current round's hint usage
-  const imageForRound = 
-      !isContextLoading && 
-      images.length > 0 && 
-      !isNaN(roundNumber) && 
-      roundNumber > 0 && 
-      roundNumber <= images.length
-      ? images[currentRoundIndex] 
-      : null;
-  
-  // If the game was started via a direct link, load settings from localStorage
-  useEffect(() => {
-    if (gameMode === 'multi' && gameIdFromQuery) {
-      // Get game settings from localStorage if they exist
-      const savedSettings = localStorage.getItem('gameSettings');
-      if (savedSettings) {
-        try {
-          console.log('Loading game settings from localStorage:', savedSettings);
-          const settings = JSON.parse(savedSettings);
-          
-          // Apply any settings that might be needed here
-          // For example, if we need to set timer values or hint counts
-          if (settings.timerSeconds) {
-            // Use the timer settings if needed
-          }
-        } catch (error) {
-          console.error('Error parsing game settings from localStorage:', error);
-        }
-      }
+  const [gameMode, setGameMode] = useState<'solo' | 'multi'>(initialMode);
+  const { 
+    remainingTime,
+    setRemainingTime, // GameLayout1 expects this, so let's get it from useGameTimer
+    hasTimedOut,
+    // setHasTimedOut, // Not directly set from here anymore, reset via resetTimer
+    resetTimer, // Get resetTimer from useGameTimer
+  } = useGameTimer({
+    initialTime: roundTimerSec || ROUND_TIME_SECONDS,
+    onTimeout: () => handleSubmitGuess(0), // Pass 0 as remainingTime on timeout
+    isActive: isRoundTimerActive
+  });
+
+  const { 
+    selectedHintType, 
+    hintContent, 
+    canSelectHint, 
+    selectHint, 
+    resetHint 
+  } = useHint(imageForRound ? {
+    ...imageForRound,
+    gps: { lat: imageForRound.latitude, lng: imageForRound.longitude },
+    url: imageForRound.image_url
+  } : undefined);
+
+  const [isHintModalOpen, setIsHintModalOpen] = useState(false);
+
+  const handleActualHintClick = () => {
+    if (!canSelectHint) {
+      console.warn('Cannot select hint: no hints available or already selected');
+      return;
     }
-  }, [gameMode, gameIdFromQuery]);
-  
-  // Extract hints used from the useHint hook
-  const { hintsUsedThisRound = 0, hintsUsedTotal = 0, HINTS_PER_GAME } = useHint(imageForRound || null) || {};
-
-  // Handle guess submission
-  const handleSubmitGuess = useCallback(() => {
-    if (isSubmitting) return;
-    if (hasTimedOut) return; // Prevent submission after timeout
-    
     if (!imageForRound) {
-      toast({
-        title: "Error",
-        description: "Cannot submit guess, image data is missing.",
-        variant: "destructive",
-      });
+      console.error('Cannot show hint modal: no image data available');
       return;
     }
-
-    // Don't require location selection if the timer ran out
-    if (!hasGuessedLocation && !hasTimedOut) {
-      toast({
-        title: "No location selected",
-        description: "Please select a location on the map first.",
-        variant: "destructive",
-      });
-      return;
-    }
-
-    console.log(`Submitting guess for round ${roundNumber}, Year: ${selectedYear}, Coords:`, currentGuess);
-    setIsSubmitting(true);
-    setIsTimerActive(false);
-
-    try {
-      const distance = currentGuess 
-        ? calculateDistanceKm(
-            currentGuess.lat,
-            currentGuess.lng,
-            imageForRound.latitude,
-            imageForRound.longitude
-          ) 
-        : null;
-
-      // Calculate scores with hint penalties applied
-      const { 
-        timeXP = 0, 
-        locationXP = 0, 
-        roundXP: finalScore = 0, 
-        roundPercent = 0,
-        hintPenalty = 0,
-        hintPenaltyPercent = 0
-      } = distance !== null 
-        ? calculateRoundScore(distance, selectedYear, imageForRound.year, hintsUsedThisRound, HINT_PENALTY) 
-        : { timeXP: 0, locationXP: 0, roundXP: 0, roundPercent: 0, hintPenalty: 0, hintPenaltyPercent: 0 };
-      
-      // Log the score with hint penalties applied
-      console.log(`Distance: ${distance?.toFixed(2) ?? 'N/A'} km, Location XP: ${locationXP.toFixed(1)}, Time XP: ${timeXP.toFixed(1)}, Hint Penalty: -${hintPenalty}, Round XP: ${finalScore.toFixed(1)}, Accuracy: ${roundPercent}%, Hints Used: ${hintsUsedThisRound}`);
-
-      recordRoundResult(
-        {
-          guessCoordinates: currentGuess,
-          distanceKm: distance,
-          score: finalScore,
-          guessYear: selectedYear,
-          xpWhere: locationXP,
-          xpWhen: timeXP,
-          accuracy: roundPercent,
-          hintsUsed: hintsUsedThisRound
-        },
-        currentRoundIndex
-      );
-
-      setCurrentGuess(null);
-      navigate(`/test/game/room/${roomId}/round/${roundNumber}/results`);
-    } catch (error) {
-      console.error("Error during guess submission:", error);
-      toast({
-        title: "Submission Error",
-        description: "An error occurred while submitting your guess.",
-        variant: "destructive",
-      });
-    } finally {
-      setTimeout(() => setIsSubmitting(false), 300);
-    }
-  }, [currentGuess, imageForRound, toast, roundNumber, selectedYear, recordRoundResult, currentRoundIndex, navigate, roomId, hintsUsedThisRound]);
-
-  // Handle timer completion
-  const handleTimeComplete = useCallback(() => {
-    console.log("Timer completed - auto submitting");
-    setHasTimedOut(true);
-    setIsTimerActive(false);
-    setIsSubmitting(true);
-    
-    if (!imageForRound) {
-      toast({
-        title: "Error",
-        description: "Cannot submit guess, image data is missing.",
-        variant: "destructive",
-      });
-      setIsSubmitting(false);
-      return;
-    }
-    
-    try {
-      // When time runs out, submit with null coordinates (no location guess) if no location is selected
-      // or submit with the current guess if one exists
-      if (!hasGuessedLocation) {
-        // No location selected, submit as 'no guess' with 0 XP and 0% accuracy
-        recordRoundResult(
-          {
-            guessCoordinates: null,
-            distanceKm: null,
-            score: 0,
-            guessYear: selectedYear,
-            xpWhere: 0,
-            xpWhen: 0,
-            accuracy: 0,
-            hintsUsed: hintsUsedThisRound
-          
-          },
-          currentRoundIndex
-        );
-        
-        toast({
-          title: "Time's Up!",
-          description: "No location was selected. Your score for this round is 0.",
-          variant: "info",
-          className: "bg-white/70 text-black border border-gray-200",
-        });
-        // Immediately navigate to results page
-        navigate(`/test/game/room/${roomId}/round/${roundNumber}/results`);
-        setIsSubmitting(false);
-        return;
-      } else {
-        // User has selected a location, use that for submission
-        const distance = currentGuess 
-          ? calculateDistanceKm(
-              currentGuess.lat,
-              currentGuess.lng,
-              imageForRound.latitude,
-              imageForRound.longitude
-            ) 
-          : null;
-
-        // Calculate scores with hint penalties applied
-        const { 
-          timeXP = 0, 
-          locationXP = 0, 
-          roundXP: baseRoundXP = 0, 
-          roundPercent = 0,
-          hintPenalty = 0,
-          hintPenaltyPercent = 0
-        } = distance !== null 
-          ? calculateRoundScore(distance, selectedYear, imageForRound.year, hintsUsedThisRound, HINT_PENALTY) 
-          : { timeXP: 0, locationXP: 0, roundXP: 0, roundPercent: 0, hintPenalty: 0, hintPenaltyPercent: 0 };
-        
-        // Ensure we have valid numbers for the final score calculation
-        const safeRoundXP = Number.isFinite(baseRoundXP) ? baseRoundXP : 0;
-        
-        // Use the base round XP - hint penalties will be applied in FinalResultsPage
-        recordRoundResult(
-          {
-            guessCoordinates: currentGuess,
-            distanceKm: distance,
-            score: safeRoundXP, // Use the raw score, hint penalties will be applied later
-            guessYear: selectedYear,
-            xpWhere: locationXP,
-            xpWhen: timeXP,
-            accuracy: roundPercent,
-            hintsUsed: hintsUsedThisRound // Track hints used for penalty calculation in FinalResultsPage
-          },
-          currentRoundIndex
-        );
-        
-        toast({
-          title: "Time's Up!",
-          description: "Submitting your current guess automatically.",
-          variant: "info",
-          className: "bg-white/70 text-black border border-gray-200",
-        });
-      }
-      
-      // Navigate to results after a short delay
-      setTimeout(() => {
-        navigate(`/test/game/room/${roomId}/round/${roundNumber}/results`);
-        setIsSubmitting(false);
-      }, 2000);
-      
-    } catch (error) {
-      console.error("Error recording timeout result:", error);
-      setIsSubmitting(false);
-    }
-  }, [imageForRound, selectedYear, currentRoundIndex, recordRoundResult, toast, navigate, roomId, roundNumber, hasGuessedLocation, currentGuess, hintsUsedThisRound, calculateDistanceKm, calculateRoundScore]);
-
-  // Reset timer and guess state when round changes
-  useEffect(() => {
-    setRemainingTime(roundTimerSec);
-    setIsTimerActive(roundTimerSec > 0);
-    setHasTimedOut(false);
-    setHasGuessedLocation(false);
-    setCurrentGuess(null);
-  }, [roundNumber, roundTimerSec]);
-
-
-
-  useEffect(() => {
-    // Redirect if roomId doesn't match or roundNumber is invalid
-    if (!isContextLoading && contextRoomId && roomId !== contextRoomId) {
-      console.warn(`URL Room ID (${roomId}) mismatch Context Room ID (${contextRoomId}). Redirecting home.`);
-      navigate('/test'); // Or handle appropriately
-      return;
-    }
-    
-    if (!isContextLoading && images.length > 0 && (isNaN(roundNumber) || roundNumber <= 0 || roundNumber > images.length)) {
-       console.warn(`Invalid round number (${roundNumber}) for image count (${images.length}). Navigating to final page.`);
-       navigate(`/test/game/room/${roomId}/final`);
-       return;
-    }
-
-  }, [roomId, roundNumber, images, isContextLoading, contextRoomId, navigate]);
-
-  const handleMapGuess = (lat: number, lng: number) => {
-    console.log(`Guess placed at: Lat ${lat}, Lng ${lng}`);
-    setCurrentGuess({ lat, lng });
-    setHasGuessedLocation(true);
+    setIsHintModalOpen(true);
   };
-  // Loading state from context
-  if (isContextLoading) {
+
+  useEffect(() => {
+    if (isContextLoading) return;
+
+    if (contextError) {
+      toast({
+        title: "Game Loading Error",
+        description: `Error loading game: ${contextError}`,
+        variant: "destructive",
+      });
+      navigate('/test');
+      return;
+    }
+
+    // If gameId is provided in URL params but not in context, it means a new game needs to be started or joined
+    if (paramRoomId && !gameId) {
+      // This scenario should ideally be handled by GameRoomPage or a dedicated game starting flow
+      // For now, we'll just redirect to home if no game context is found for a given roomId
+      toast({
+        title: "Game Session Error",
+        description: "Invalid game session. Please start a new game.",
+        variant: "destructive",
+      });
+      navigate('/test');
+      return;
+    }
+
+    // If it's the first round and game hasn't started, start it
+    if (roundNumber === 1 && !gameId) {
+      startGame(initialMode, paramRoomId);
+    }
+
+    // Reset hints used for the new round - This is now handled by useGameRound's internal useEffect
+    // setHintsUsedThisRound(0);
+
+    // Reset timer for the new round
+    resetTimer(); // Reset timer using the function from useGameTimer
+    setIsRoundTimerActive(true); // Start the timer for the new round
+    // setHasTimedOut(false); // Handled by resetTimer
+    // setHasGuessedLocation(false); // Handled by useGameRound
+    // setCurrentGuess(null); // Handled by useGameRound
+    // setSelectedYear(new Date().getFullYear()); // Handled by useGameRound
+
+  }, [roundNumber, gameId, startGame, initialMode, paramRoomId, isContextLoading, contextError, roundTimerSec, navigate, toast, resetTimer]);
+
+  // Confirm navigation dialog
+  const [showConfirmNavigation, setShowConfirmNavigation] = useState(false);
+  const [pendingNavigation, setPendingNavigation] = useState<(() => void) | null>(null);
+
+  const handleConfirmNavigation = useCallback((confirm: boolean) => {
+    setShowConfirmNavigation(false);
+    if (confirm && pendingNavigation) {
+      pendingNavigation();
+    }
+    setPendingNavigation(null);
+  }, [pendingNavigation]);
+
+  // Intercept navigation attempts if game is active
+  useEffect(() => {
+    const handleBeforeUnload = (event: BeforeUnloadEvent) => {
+      if (gameId && roundNumber <= ROUNDS_PER_GAME && !isSubmitting) {
+        event.preventDefault();
+        event.returnValue = ''; 
+      }
+    };
+
+    window.addEventListener('beforeunload', handleBeforeUnload);
+
+    return () => {
+      window.removeEventListener('beforeunload', handleBeforeUnload);
+    };
+  }, [gameId, roundNumber, isSubmitting]);
+
+  // Effect to stop timer when submitting
+  useEffect(() => {
+    if (isSubmitting) {
+      setIsRoundTimerActive(false);
+    }
+  }, [isSubmitting]);
+
+  // Loading state
+  if (isContextLoading || !imageForRound) {
     return (
-      <div className="fixed inset-0 bg-gray-100 dark:bg-gray-900 flex items-center justify-center z-50">
-        <div className="flex flex-col items-center space-y-4">
-          <Loader className="h-8 w-8 animate-spin text-history-primary" />
-          <p className="text-lg">Loading Game...</p>
-        </div>
+      <div className="flex flex-col items-center justify-center min-h-screen bg-gray-100 dark:bg-gray-900">
+        <Loader className="h-12 w-12 animate-spin text-history-primary" />
+        <p className="text-lg text-gray-700 dark:text-gray-300 mt-4">Loading game round...</p>
       </div>
     );
   }
 
-  // Error state from context
+  // Error state
   if (contextError) {
-     return (
-      <div className="fixed inset-0 bg-gray-100 dark:bg-gray-900 flex items-center justify-center z-50">
-        <div className="text-center p-6 bg-white dark:bg-gray-800 rounded-lg shadow-md">
-          <h2 className="text-xl font-semibold text-red-600 mb-3">Error Loading Game</h2>
-          <p className="text-muted-foreground mb-4">{contextError}</p>
-          <button 
-            onClick={() => confirmNavigation(handleNavigateHome)}
-            className="px-4 py-2 bg-history-primary text-white rounded hover:bg-history-primary/90"
-          >
-            Return Home
-          </button>
-        </div>
-      </div>
-    );
-  }
-  
-  // Context loaded but no image available for this valid round (shouldn't happen often)
-  if (!imageForRound) {
-     return (
-      <div className="fixed inset-0 bg-gray-100 dark:bg-gray-900 flex items-center justify-center z-50">
-        <div className="text-center p-6 bg-white dark:bg-gray-800 rounded-lg shadow-md">
-          <h2 className="text-xl font-semibold text-yellow-600 mb-3">Image Not Found</h2>
-          <p className="text-muted-foreground">Could not load image for round {roundNumber}.</p>
-           <button 
-             onClick={() => confirmNavigation(handleNavigateHome)}
-             className="px-4 py-2 bg-history-primary text-white rounded hover:bg-history-primary/90"
-           >
-             Return Home
-           </button>
-        </div>
+    return (
+      <div className="flex flex-col items-center justify-center min-h-screen bg-gray-100 dark:bg-gray-900">
+        <MapPin className="h-12 w-12 text-red-500" />
+        <p className="text-lg text-red-700 dark:text-red-300 mt-4">Error: {contextError.message}</p>
+        <Button onClick={() => navigate('/test')} className="mt-4">Go to Home</Button>
       </div>
     );
   }
 
-  // Render the layout and the separate submit button
   return (
-    // Use relative positioning to allow absolute positioning for the button
-    <div className="relative w-full min-h-screen flex flex-col">
-      {/* Progress bar at the very top */}
-      <div className="w-full bg-history-primary absolute top-0 z-50">
-        <div className="max-w-7xl mx-auto">
-          <SegmentedProgressBar current={roundNumber} total={ROUNDS_PER_GAME} className="w-full" />
-        </div>
-      </div>
-
-      {/* Main game content */}
-      <GameLayout1
-        onComplete={handleSubmitGuess}
-        gameMode="solo"
-        currentRound={roundNumber}
-        image={imageForRound}
-        onMapGuess={handleMapGuess}
-        selectedYear={selectedYear}
-        onYearChange={setSelectedYear}
-        remainingTime={remainingTime}
-        setRemainingTime={setRemainingTime}
-        isTimerActive={isTimerActive}
-        onNavigateHome={handleNavigateHome}
-        onConfirmNavigation={confirmNavigation}
-      />
-
-      {/* Submit Guess Button */}
-      <div className="submit-button-container fixed bottom-0 left-0 right-0 p-4 bg-gradient-to-t from-background via-background to-transparent z-[10001] flex justify-center">
-        <TooltipProvider>
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <div className="w-full max-w-md">
-                <Button
-                  onClick={handleSubmitGuess}
-                  disabled={isSubmitting || hasTimedOut || (roundTimerSec > 0 && remainingTime <= 0) || !hasGuessedLocation}
-                  size="lg"
-                  className={`submit-guess w-full shadow-lg ${
-                    hasTimedOut || (roundTimerSec > 0 && remainingTime <= 0) || !hasGuessedLocation ? 'opacity-75 cursor-not-allowed' : ''
-                  }`}
-                >
-                  {isSubmitting ? (
-                    <>
-                      <Loader className="mr-2 h-4 w-4 animate-spin" />
-                      Submitting...
-                    </>
-                  ) : (
-                    roundTimerSec > 0 && remainingTime <= 0 ? 'Time\'s Up!' : 'Submit Guess'
-                  )}
-                </Button>
-              </div>
-            </TooltipTrigger>
-            {!hasGuessedLocation && !hasTimedOut && (
-              <TooltipContent>
-                <div className="flex items-center">
-                  <MapPin className="mr-2 h-4 w-4" />
-                  <span>Please place a guess on the map before submitting</span>
-                </div>
-              </TooltipContent>
-            )}
-          </Tooltip>
-        </TooltipProvider>
-      </div>
-      {/* Confirmation Dialog */}
-      <ConfirmNavigationDialog
-        isOpen={showConfirmDialog}
-        onClose={() => setShowConfirmDialog(false)}
-        onConfirm={handleConfirmNavigation}
-      />
-    </div> // Closing tag for the main container
+    <GameLayout1
+      onComplete={() => handleSubmitGuess(remainingTime)}
+      gameMode={gameMode}
+      currentRound={roundNumber}
+      totalRounds={ROUNDS_PER_GAME}
+      image={imageForRound}
+      initialGuess={currentGuess} // Changed from currentGuess to initialGuess
+      selectedYear={selectedYear}
+      onMapGuess={handleMapClick} // Changed from onMapClick to onMapGuess
+      onYearChange={handleYearSelect} // Prop name matches
+      remainingTime={remainingTime}
+      setRemainingTime={setRemainingTime} // Pass setRemainingTime from useGameTimer
+      isTimerActive={isRoundTimerActive} // Pass local isRoundTimerActive state
+      onNavigateHome={() => navigate('/test')} // Basic navigation handler
+      onConfirmNavigation={(navigateTo) => { // Basic confirm navigation handler
+        setPendingNavigation(() => navigateTo);
+        setShowConfirmNavigation(true);
+      }}
+      totalGameAccuracy={totalGameAccuracy}
+      totalGameXP={totalGameXP}
+      // hintsUsedThisRound, hintsUsedTotal, HINTS_PER_GAME are not directly available here in the same way GameLayout1 expects.
+      // GameLayout1's internal hint logic might conflict or need adjustment.
+      // For now, passing what's available from useGameRound for hintsUsedThisRound.
+      hintsUsedThisRound={hintsUsedThisRound} 
+      hintsUsedTotal={0} // Placeholder - GameContext/useGameRound doesn't track total across game for layout
+      HINTS_PER_GAME={hintsAllowed || 3} // Use context hintsAllowed
+      // Removed props not in GameLayout1Props: isSubmitting, hasTimedOut, hasGuessedLocation, tooltipOpen, gameId
+      // Props like onUseHint, onHintModalOpen etc. are for GameRoundPage's own HintModal, not GameLayout1's internal one.
+    >
+      <></>
+      {/* Passed empty fragment for required children prop as GameLayout1 renders its main content internally */}
+    </GameLayout1>
   );
 };
 
-export default GameRoundPage; 
+export default GameRoundPage;

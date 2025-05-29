@@ -20,8 +20,8 @@ const HomePage = () => {
   const [pendingMode, setPendingMode] = useState<string | null>(null);
   const [isFriendsModalOpen, setIsFriendsModalOpen] = useState(false);
   const navigate = useNavigate();
-  const gameContext = useGame();
-  const { startGame, isLoading } = gameContext || {};
+  const { startGame, isLoading } = useGame();
+  const { toast } = useToast();
 
   useEffect(() => {
     const loadUserSettings = async () => {
@@ -48,43 +48,49 @@ const HomePage = () => {
     }
   };
 
-  const { toast } = useToast();
-
   const handleStartGame = async (mode: string) => {
+    console.log('handleStartGame called with mode:', mode);
+    
     // Check if user is authenticated (either guest or registered)
     if (!user) {
+      console.log('No user found, showing auth modal');
       setPendingMode(mode);
       setShowAuthModal(true);
       return;
     }
 
     if (mode === 'time-attack') {
+      console.log('Time attack mode selected, showing friends modal');
       setIsFriendsModalOpen(true);
       return;
     }
     
-    if (!gameContext) {
-      console.error('Game context is not available');
-      toast({
-        variant: "destructive",
-        title: "Error",
-        description: "Unable to start game. Please try again.",
-      });
-      return;
-    }
-    
     if (!isLoading) {
+      console.log('Starting game...');
       try {
-        await startGame?.();
-        navigate('/game');
+        // Check if startGame is defined
+        if (!startGame) {
+          throw new Error('startGame function is not defined in game context');
+        }
+        
+        console.log('Calling startGame()...');
+        startGame();
+        console.log('startGame() completed, navigating to /test/game/solo/1');
+        
+        // Navigate to the solo game with round 1
+        navigate('/test/game/solo/1');
+        
       } catch (error) {
-        console.error('Error starting game:', error);
+        const errorMsg = error instanceof Error ? error.message : 'Unknown error occurred';
+        console.error('Error starting game:', errorMsg, error);
         toast({
           variant: "destructive",
           title: "Error",
-          description: "Failed to start the game. Please try again.",
+          description: `Failed to start the game: ${errorMsg}`,
         });
       }
+    } else {
+      console.log('Game is already loading, ignoring start request');
     }
   };
   
@@ -95,16 +101,6 @@ const HomePage = () => {
     if (!user) {
       setPendingMode('time-attack');
       setShowAuthModal(true);
-      return;
-    }
-    
-    if (!gameContext) {
-      console.error('Game context is not available');
-      toast({
-        variant: "destructive",
-        title: "Error",
-        description: "Unable to start game. Please try again.",
-      });
       return;
     }
     
@@ -149,7 +145,24 @@ const HomePage = () => {
 
       {/* Game instructions, settings, etc. */}
       <div className="my-4"></div>
-      {gameContext ? (
+      {isLoading ? (
+        <div className="text-center py-12">
+          <div className="animate-pulse space-y-4">
+            <div className="h-8 bg-gray-200 dark:bg-gray-700 rounded w-3/4 mx-auto"></div>
+            <div className="h-4 bg-gray-200 dark:bg-gray-700 rounded w-1/2 mx-auto"></div>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-8 max-w-6xl mx-auto mt-8">
+              {[1, 2, 3].map((i) => (
+                <div key={i} className="h-64 bg-gray-100 dark:bg-gray-800 rounded-lg p-6 shadow">
+                  <div className="h-8 w-8 bg-gray-200 dark:bg-gray-700 rounded-full mx-auto mb-4"></div>
+                  <div className="h-6 bg-gray-200 dark:bg-gray-700 rounded w-3/4 mx-auto mb-2"></div>
+                  <div className="h-4 bg-gray-200 dark:bg-gray-700 rounded w-5/6 mx-auto mb-4"></div>
+                  <div className="h-10 bg-gray-200 dark:bg-gray-700 rounded w-3/4 mx-auto"></div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      ) : (
         <div className="grid grid-cols-1 md:grid-cols-3 gap-8 max-w-6xl mx-auto">
           <GameModeCard
             title="Solo"
@@ -175,23 +188,6 @@ const HomePage = () => {
             onStartGame={handleStartGame}
             isLoading={isLoading}
           />
-        </div>
-      ) : (
-        <div className="text-center py-12">
-          <div className="animate-pulse space-y-4">
-            <div className="h-8 bg-gray-200 dark:bg-gray-700 rounded w-3/4 mx-auto"></div>
-            <div className="h-4 bg-gray-200 dark:bg-gray-700 rounded w-1/2 mx-auto"></div>
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-8 max-w-6xl mx-auto mt-8">
-              {[1, 2, 3].map((i) => (
-                <div key={i} className="h-64 bg-gray-100 dark:bg-gray-800 rounded-lg p-6 shadow">
-                  <div className="h-8 w-8 bg-gray-200 dark:bg-gray-700 rounded-full mx-auto mb-4"></div>
-                  <div className="h-6 bg-gray-200 dark:bg-gray-700 rounded w-3/4 mx-auto mb-2"></div>
-                  <div className="h-4 bg-gray-200 dark:bg-gray-700 rounded w-5/6 mx-auto mb-4"></div>
-                  <div className="h-10 bg-gray-200 dark:bg-gray-700 rounded w-3/4 mx-auto"></div>
-                </div>
-              ))}
-            </div>
-          </div>
         </div>
       )}
 

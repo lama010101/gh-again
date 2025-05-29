@@ -4,24 +4,40 @@ import { Button } from '@/components/ui/button';
 import { Loader2 } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import SettingsTab from '@/components/profile/SettingsTab';
+import { toast } from '@/components/ui/sonner';
 
 interface GlobalSettingsModalProps {
   isOpen: boolean;
   onClose: () => void;
 }
 
+interface UserSettings {
+  theme: 'system' | 'light' | 'dark';
+  soundEffects: boolean;
+  music: boolean;
+  notifications: boolean;
+  sound_enabled: boolean;
+  notification_enabled: boolean;
+  distance_unit: 'km' | 'mi';
+  language: string;
+}
+
 const GlobalSettingsModal: React.FC<GlobalSettingsModalProps> = ({ isOpen, onClose }) => {
   const { user } = useAuth();
   const [isLoading, setIsLoading] = useState(true);
-  const [settings, setSettings] = useState<any>(null);
+  const [settings, setSettings] = useState<UserSettings | null>(null);
   const [isSaving, setIsSaving] = useState(false);
+  const [hasError, setHasError] = useState(false);
 
   // Mock user settings for the modal
-  const mockSettings = {
+  const mockSettings: UserSettings = {
     theme: 'system',
     soundEffects: true,
     music: true,
     notifications: true,
+    sound_enabled: true,
+    notification_enabled: true,
+    distance_unit: 'km',
     language: 'en',
   };
 
@@ -29,9 +45,15 @@ const GlobalSettingsModal: React.FC<GlobalSettingsModalProps> = ({ isOpen, onClo
   useEffect(() => {
     if (isOpen) {
       setIsLoading(true);
-      // Simulate API call
+      setHasError(false); // Reset error state on open
+      // Simulate API call with potential error
       const timer = setTimeout(() => {
-        setSettings(mockSettings);
+        if (Math.random() > 0.9) { // Simulate 10% chance of error
+          setHasError(true);
+          toast.error('Failed to load settings. Please try again.');
+        } else {
+          setSettings(mockSettings);
+        }
         setIsLoading(false);
       }, 300);
 
@@ -42,6 +64,7 @@ const GlobalSettingsModal: React.FC<GlobalSettingsModalProps> = ({ isOpen, onClo
   const handleSettingsUpdated = () => {
     // Refresh settings if needed
     console.log('Settings updated');
+    toast.success('Settings updated successfully!');
   };
 
   if (!user) return null;
@@ -56,6 +79,11 @@ const GlobalSettingsModal: React.FC<GlobalSettingsModalProps> = ({ isOpen, onClo
         {isLoading ? (
           <div className="flex justify-center items-center py-8">
             <Loader2 className="h-8 w-8 animate-spin" />
+          </div>
+        ) : hasError ? (
+          <div className="text-center text-red-500 py-8">
+            <p>Error loading settings. Please close and reopen the modal.</p>
+            <Button onClick={() => setHasError(false)} className="mt-4">Retry</Button>
           </div>
         ) : (
           <div className="py-4">

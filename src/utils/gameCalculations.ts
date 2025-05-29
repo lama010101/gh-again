@@ -203,11 +203,11 @@ export const calculateGlobalStats = (gameScores: Array<{
   finalXP: number;
   finalPercent: number;
 }>): {
-  globalXP: number;
+
   globalPercent: number;
 } => {
   // Sum up XP from all games
-  const globalXP = gameScores.reduce((sum, game) => sum + game.finalXP, 0);
+
   
   // Average accuracy across all games
   const globalPercent = gameScores.length > 0 ?
@@ -215,7 +215,7 @@ export const calculateGlobalStats = (gameScores: Array<{
     0;
   
   return {
-    globalXP,
+
     globalPercent
   };
 };

@@ -33,8 +33,8 @@ describe('TestLayout', () => {
     roundTimerSec: 60,
     totalGameAccuracy: 75,
     totalGameXP: 1500,
-    globalAccuracy: 80,
-    globalXP: 5000,
+
+
     setHintsAllowed: jest.fn(),
     setRoundTimerSec: jest.fn(),
     startGame: jest.fn(),
@@ -126,8 +126,8 @@ describe('TestLayout', () => {
       ...mockGameContextValue,
       totalGameAccuracy: 75.6,
       totalGameXP: 1500.3,
-      globalAccuracy: 80.8,
-      globalXP: 5000.7
+
+
     };
 
     render(

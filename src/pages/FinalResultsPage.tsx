@@ -1,250 +1,242 @@
-import React from "react";
+import React, { useState, useEffect, useCallback, useMemo } from "react";
 import { Button } from "@/components/ui/button";
-import { useNavigate, useParams } from "react-router-dom";
-import { Share2, Loader, Home, MapPin, Calendar, ArrowLeft, Target, Zap } from "lucide-react";
+import { useNavigate } from "react-router-dom";
+import { Share2, Home, Target, Zap, Loader } from "lucide-react"; // MapPin, Calendar moved to RoundDetailCard
 import { useGame } from "@/contexts/GameContext";
 import { Badge } from "@/components/ui/badge";
-import { useEffect } from "react";
 import Logo from "@/components/Logo";
 import { NavProfile } from "@/components/NavProfile";
 import { formatInteger } from '@/utils/format';
-import { updateUserMetrics } from '@/utils/profile/profileService';
-import { supabase } from '@/integrations/supabase/client';
 import { 
   calculateFinalScore,
   calculateTimeAccuracy,
-  calculateLocationAccuracy,
+  // calculateLocationAccuracy, // Now handled within useGame or specific calculation hook if further refactored
   getTimeDifferenceDescription
 } from "@/utils/gameCalculations";
+import type { GameImage as IndexGameImage, RoundResult as IndexRoundResult, Location } from '@/types'; // Import and alias types
+import RoundDetailCard from '@/components/RoundDetailCard'; // Import the new component
 
-const FinalResultsPage = () => {
+// Define interfaces for type safety
+interface RoundScore {
+  roundXP: number;
+  roundPercent: number;
+  locationAccuracy: { score: number; distanceKm: number };
+  timeAccuracy: { score: number };
+  timeDifference: number;
+  distanceKm: number; // Distance in kilometers between guess and actual location
+  hintPenalty?: number;
+  hintPenaltyPercent?: number;
+}
+
+interface GameMetrics {
+  gameAccuracy: number;
+  gameXP: number;
+  isPerfectGame: boolean;
+  locationAccuracy: number;
+  timeAccuracy: number;
+  yearBullseye?: boolean;
+  locationBullseye?: boolean;
+}
+
+const FinalResultsPage: React.FC = (): JSX.Element | null => {
   const navigate = useNavigate();
-  const { 
-    images, 
-    isLoading: isContextLoading, 
-    error: contextError, 
-    startGame,
-    resetGame,
-    roundResults,
-    fetchGlobalMetrics,
-    refreshGlobalMetrics,
-    globalXP = 0,
-    globalAccuracy = 0,
-    gameId // Get gameId from context
-  } = useGame();
+  const [open, setOpen] = useState<Record<string, boolean>>({});
   
-  // Update user metrics and fetch global scores when the final results page is loaded
+  const { 
+    gameId,
+    images,
+    roundResults,
+    isLoading, 
+    error,
+    resetGame,
+    startGame,
+    fetchGlobalMetrics,
+    refreshGlobalMetrics
+  } = useGame();
+
+  const handlePlayAgain = async (): Promise<void> => {
+    resetGame();
+    navigate('/');
+    await startGame('solo');
+  };
+
+  const handleHome = (): void => {
+    navigate('/');
+  };
+
   useEffect(() => {
-    // Immediately fetch global metrics on page load to ensure navbar shows correct values
-    refreshGlobalMetrics();
+    if (!isLoading && (!gameId || roundResults.length === 0)) {
+      navigate('/');
+    }
+  }, [isLoading, gameId, roundResults, navigate]);
+
+  // Fetch game metrics when gameId is available
+  useEffect(() => {
+    if (gameId) {
+      // Assuming fetchGlobalMetrics doesn't need arguments based on error
+      fetchGlobalMetrics();
+    }
+  }, [gameId, fetchGlobalMetrics]);
+
+  // Refresh metrics periodically when page is visible
+  useEffect(() => {
+    let refreshMetricsTimer: number | null = null;
     
-    const updateMetricsAndFetchGlobal = async () => {
-      if (roundResults.length === 0 || !images.length) {
-        console.log('No round results or images to process');
-        return;
-      }
-
-      console.log('Processing game results to update user metrics...');
-
-      // Calculate raw XP and percentage for each round
-      const roundScores = roundResults.map((result, index) => {
-        const img = images[index];
-        if (!result || !img) return { roundXP: 0, roundPercent: 0 };
-        
-        const locationXP = calculateLocationAccuracy(result.distanceKm || 0);
-        const timeXP = calculateTimeAccuracy(result.guessYear || 0, img.year || 0);
-        const roundXP = locationXP + timeXP;
-        const roundPercent = (roundXP / 200) * 100; // 200 is the max XP per round
-        
-        console.log(`Round ${index + 1} - Location XP: ${locationXP}, Time XP: ${timeXP}, Total Raw XP: ${roundXP}, Hints Used: ${result.hintsUsed || 0}`);
-        
-        return { roundXP, roundPercent };
-      });
-
-      // Sum up XP from all rounds
-      const { finalXP, finalPercent } = calculateFinalScore(roundScores);
-      
-      // Calculate total hints used and apply penalty (30 XP per hint)
-      const HINT_PENALTY = 30;
-      const totalHintsUsed = roundResults.reduce((sum, result) => sum + (result.hintsUsed || 0), 0);
-      const totalHintPenalty = totalHintsUsed * HINT_PENALTY;
-      const netFinalXP = Math.max(0, Math.round(finalXP - totalHintPenalty));
-      
-      console.log('Final Score Calculation:', {
-        totalRounds: roundResults.length,
-        rawTotalXP: finalXP,
-        totalHintsUsed,
-        totalHintPenalty,
-        netFinalXP,
-        finalPercent
-      });
-      
-      // Check if this was a perfect game
-      const isPerfectGame = finalPercent === 100;
-      
-      // Calculate average location and time accuracy
-      const locationAccuracySum = roundResults.reduce((sum, result) => {
-        return sum + calculateLocationAccuracy(result.distanceKm || 0);
-      }, 0);
-      
-      const timeAccuracySum = roundResults.reduce((sum, result, index) => {
-        const img = images[index];
-        return sum + calculateTimeAccuracy(result.guessYear || 0, img.year || 0);
-      }, 0);
-      
-      const avgLocationAccuracy = locationAccuracySum / roundResults.length;
-      const avgTimeAccuracy = timeAccuracySum / roundResults.length;
-      
-      // Check for bullseyes
-      const yearBullseye = roundResults.some(result => result.guessYear === images[result.roundIndex]?.year);
-      const locationBullseye = roundResults.some(result => (result.distanceKm || 0) < 10);
-      
-      // Get current user (may be guest or registered)
-      const { data: { user } } = await supabase.auth.getUser();
-
-      // Prepare metrics update with final XP (after hint penalties)
-      const metricsUpdate = {
-        gameAccuracy: finalPercent,
-        gameXP: netFinalXP, // This is the final XP after hint penalties
-        isPerfectGame,
-        locationAccuracy: avgLocationAccuracy,
-        timeAccuracy: avgTimeAccuracy,
-        yearBullseye,
-        locationBullseye
-      };
-      
-      console.log('Updating user metrics with:', {
-        ...metricsUpdate,
-        // Log the raw values for debugging
-        rawXP: finalXP,
-        hintPenalty: totalHintPenalty
-      });
-
-      // Always call updateUserMetrics for both guest and registered users
-      const userId = user?.id || (JSON.parse(localStorage.getItem('guestSession') || '{}').id);
-      // Update user metrics and then refresh global metrics to ensure navbar is up to date
-      console.log('[FinalResultsPage] Calling updateUserMetrics with:', {
-        userId,
-        metrics: metricsUpdate,
-        timestamp: new Date().toISOString()
-      });
-      
-      const metricsUpdated = await updateUserMetrics(userId, metricsUpdate, gameId);
-      console.log(`[FinalResultsPage] [GameID: ${gameId || 'N/A'}] updateUserMetrics called with:`, {
-        userId,
-        metrics: metricsUpdate,
-        gameId,
-        timestamp: new Date().toISOString()
-      });
-      console.log('[FinalResultsPage] updateUserMetrics result:', {
-        success: metricsUpdated,
-        userId,
-        timestamp: new Date().toISOString()
-      });
-      
-      console.log(`[FinalResultsPage] [GameID: ${gameId || 'N/A'}] updateUserMetrics result:`, {
-        success: metricsUpdated,
-        userId,
-        gameId,
-        timestamp: new Date().toISOString()
-      });
-
-      if (metricsUpdated) {
-        console.log('[FinalResultsPage] Refreshing global metrics...');
-        await refreshGlobalMetrics();
-        console.log('[FinalResultsPage] Global metrics refreshed');
-      }
-      if (!userId) {
-        console.error('No user ID found for updating metrics');
-        return;
-      }
-      
-      try {
-        // The updateUserMetrics call is already made above, this is redundant
-        // const updateSuccess = await updateUserMetrics(userId, metricsUpdate, gameId);
-        const updateSuccess = metricsUpdated; // Use the result from the call above
-        if (updateSuccess) {
-          console.log('Successfully updated user metrics');
-          
-          // CRITICAL FIX: Immediately refresh global metrics to update the navbar
-          // Don't use setTimeout which can be unreliable
-          await refreshGlobalMetrics();
-          console.log('Immediately refreshed global metrics after update');
-          
-          // For guest users, directly update localStorage and the game context
-          if (user?.id || localStorage.getItem('guestSession')) {
-            // If guest user, manually update the localStorage copy to ensure it's updated
-            const isGuest = !!localStorage.getItem('guestSession');
-            if (isGuest) {
-              const storageKey = `user_metrics_${userId}`;
-              const storedMetricsJson = localStorage.getItem(storageKey);
-              if (storedMetricsJson) {
-                try {
-                  // Don't manually set the metrics here - they should already be properly calculated by updateUserMetrics
-                  // This was causing the global accuracy to always be set to the most recent game's accuracy
-                  // Just refresh the metrics to ensure the UI is updated
-                  console.log('Ensuring metrics are properly reflected in the UI');
-                  
-                  // Refresh again to ensure UI is updated
-                  await refreshGlobalMetrics();
-                } catch (e) {
-                  console.error('Error updating guest metrics in localStorage:', e);
-                }
-              }
-            }
+    // Function to start the timer
+    const startTimer = () => {
+      if (gameId) {
+        refreshMetricsTimer = window.setInterval(() => {
+          try {
+            refreshGlobalMetrics();
+          } catch (err) {
+            console.error('Error refreshing global metrics:', err);
           }
-        } else {
-          console.error('Failed to update user metrics');
-        }
-      } catch (error) {
-        console.error('Error while updating metrics:', error);
+        }, 5000);
       }
     };
     
-    updateMetricsAndFetchGlobal();
-  }, [roundResults, images, refreshGlobalMetrics]);
-  
-  // Additional effect to ensure global metrics are always refreshed when this page is viewed
-  useEffect(() => {
-    const refreshMetricsTimer = setInterval(() => {
-      refreshGlobalMetrics();
-    }, 2000); // Refresh every 2 seconds while on this page
+    // Function to clear the timer
+    const clearTimer = () => {
+      if (refreshMetricsTimer !== null) {
+        clearInterval(refreshMetricsTimer);
+        refreshMetricsTimer = null;
+      }
+    };
     
-    return () => clearInterval(refreshMetricsTimer);
-  }, [refreshGlobalMetrics]);
+    // Handle visibility change
+    const handleVisibilityChange = () => {
+      if (document.hidden) {
+        clearTimer();
+      } else {
+        clearTimer(); // Clear any existing timer first
+        startTimer();
+      }
+    };
+    
+    // Add event listener for visibility
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    
+    // Initial start
+    if (!document.hidden && gameId) {
+      startTimer();
+    }
 
-  const handlePlayAgain = async () => {
-    resetGame();
-    navigate('/test'); // Navigate to the home page first to ensure a clean state
-    await startGame();
-  };
+    // Cleanup
+    return () => {
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+      clearTimer();
+    };
+  }, [refreshGlobalMetrics, gameId]);
 
-  const handleHome = () => {
-    resetGame();
-    navigate("/");
-  };
+  const toggleDetails = useCallback((imageId: string): void => {
+    setOpen(prevOpen => ({
+      ...prevOpen,
+      [imageId]: !prevOpen[imageId]
+    }));
+  }, []); // setOpen from useState is stable and doesn't need to be in dependencies
 
-  if (isContextLoading) {
+  // Memoize roundScores calculation to prevent unnecessary recalculations
+  // This now uses the types from the game context directly (image_url, guessCoordinates)
+  const memoizedRoundScores = useMemo(() => {
+    return roundResults.map((resultFromContext: any, index: number) => {
+      const imageFromContext: any = images[index]; // Assuming images from context has image_url, etc.
+      if (!imageFromContext || !resultFromContext) return null;
+
+      const guessLocationFromContext = resultFromContext.guessCoordinates; // e.g., { lat: number, lng: number } | null
+      const actualLocation = {
+        lat: imageFromContext.latitude,
+        lng: imageFromContext.longitude
+      };
+
+      let locationAccuracy = { score: 0, distanceKm: 0 };
+      if (guessLocationFromContext) {
+        try {
+          function getDistanceFromLatLonInKm(lat1: number, lon1: number, lat2: number, lon2: number): number {
+            const R = 6371;
+            const dLat = deg2rad(lat2 - lat1);
+            const dLon = deg2rad(lon2 - lon1);
+            const a = Math.sin(dLat/2) * Math.sin(dLat/2) +
+                      Math.cos(deg2rad(lat1)) * Math.cos(deg2rad(lat2)) * 
+                      Math.sin(dLon/2) * Math.sin(dLon/2);
+            const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+            return R * c;
+          }
+          function deg2rad(deg: number): number { return deg * (Math.PI/180); }
+          
+          const distanceKm = getDistanceFromLatLonInKm(
+            guessLocationFromContext.lat,
+            guessLocationFromContext.lng,
+            actualLocation.lat,
+            actualLocation.lng
+          );
+          const maxDistance = 5000;
+          const score = Math.max(0, 100 - Math.min(100, (distanceKm / maxDistance) * 100));
+          locationAccuracy = {
+            score: Math.round(score),
+            distanceKm: Math.round(distanceKm * 10) / 10
+          };
+        } catch (e) {
+          console.error('Error calculating location accuracy:', e);
+        }
+      }
+
+      let timeAccuracy = { score: 0 };
+      if (resultFromContext.guessYear) {
+        try {
+          const timeResult = calculateTimeAccuracy(resultFromContext.guessYear, imageFromContext.year);
+          timeAccuracy = typeof timeResult === 'number' ? { score: timeResult } : timeResult;
+        } catch (e) {
+          console.error('Error calculating time accuracy:', e);
+        }
+      }
+
+      return {
+        roundXP: (locationAccuracy?.score || 0) + (timeAccuracy?.score || 0),
+        roundPercent: (((locationAccuracy?.score || 0) + (timeAccuracy?.score || 0)) / 200) * 100,
+        locationAccuracy,
+        timeAccuracy,
+        timeDifference: resultFromContext.guessYear ? Math.abs(resultFromContext.guessYear - imageFromContext.year) : 0,
+        distanceKm: locationAccuracy.distanceKm,
+        // These are based on the structure of RoundScore, ensure resultFromContext has hintsUsed
+        hintPenalty: resultFromContext.hintsUsed ? resultFromContext.hintsUsed * 30 : 0,
+        hintPenaltyPercent: resultFromContext.hintsUsed ? (resultFromContext.hintsUsed * 30 / 200) * 100 : 0,
+        // Store original context data if needed for mapping to RoundDetailCard later
+        originalImageId: imageFromContext.id,
+        originalGuessCoordinates: resultFromContext.guessCoordinates,
+        originalImageUrl: imageFromContext.image_url,
+        originalYear: imageFromContext.year,
+        originalLatitude: imageFromContext.latitude,
+        originalLongitude: imageFromContext.longitude,
+        originalGuessYear: resultFromContext.guessYear,
+        originalHintsUsed: resultFromContext.hintsUsed
+      };
+    });
+  }, [roundResults, images]);
+
+  if (isLoading) {
     return (
       <div className="min-h-screen bg-history-light dark:bg-history-dark p-8 flex items-center justify-center">
-        <div className="text-center">
-          <Loader className="h-12 w-12 animate-spin text-history-primary mx-auto mb-4" />
-          <p className="text-lg">Loading final results...</p>
+        <div className="text-center" role="status" aria-live="polite">
+          <Loader className="h-8 w-8 animate-spin mx-auto mb-4" />
+          <div className="text-lg">Loading your results...</div>
         </div>
       </div>
     );
   }
 
-  if (contextError) {
+  if (error) {
     return (
       <div className="min-h-screen bg-history-light dark:bg-history-dark p-8 flex items-center justify-center">
-        <div className="text-center">
+        <div className="text-center" role="alert" aria-live="assertive">
           <div className="text-red-500 text-5xl mb-4">⚠️</div>
           <h2 className="text-2xl font-bold mb-4">Error Loading Results</h2>
-          <p className="mb-6">{contextError}</p>
+          <p className="mb-6">
+            {error.message || 'An unexpected error occurred. Please try again.'}
+          </p>
           <Button
             onClick={() => navigate("/")}
             className="bg-history-primary hover:bg-history-primary/90 text-white"
+            aria-label="Return to home page"
           >
             Return to Home
           </Button>
@@ -264,234 +256,217 @@ const FinalResultsPage = () => {
     );
   }
 
-  // Calculate final score using the standardized scoring system
-  const roundScores = roundResults.map(result => {
-    // If xpWhere and xpWhen are already calculated, use them
-    if (result.xpWhere !== undefined && result.xpWhen !== undefined) {
-      return {
-        roundXP: result.xpWhere + result.xpWhen,
-        roundPercent: result.accuracy !== undefined ? result.accuracy : 
-          ((result.xpWhere + result.xpWhen) / 200) * 100 // Calculate percentage if not provided
-      };
+  const roundScores = roundResults.map((result, index) => {
+    const img = images[index];
+    if (!img) return null;
+
+    // Use guessCoordinates instead of guessLocation
+    const guessLocation = result.guessCoordinates ? {
+      lat: result.guessCoordinates.lat,
+      lng: result.guessCoordinates.lng
+    } : null;
+    
+    const actualLocation = {
+      lat: img.latitude,
+      lng: img.longitude
+    };
+
+    // Initialize location accuracy with default values
+    let locationAccuracy = { score: 0, distanceKm: 0 };
+    
+    // Only calculate if we have valid coordinates
+    if (guessLocation) {
+      try {
+        // Calculate distance using Haversine formula for more accurate Earth distance
+        function getDistanceFromLatLonInKm(lat1: number, lon1: number, lat2: number, lon2: number): number {
+          const R = 6371; // Radius of the earth in km
+          const dLat = deg2rad(lat2 - lat1);
+          const dLon = deg2rad(lon2 - lon1);
+          const a = 
+            Math.sin(dLat/2) * Math.sin(dLat/2) +
+            Math.cos(deg2rad(lat1)) * Math.cos(deg2rad(lat2)) * 
+            Math.sin(dLon/2) * Math.sin(dLon/2); 
+          const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a)); 
+          return R * c; // Distance in km
+        }
+        
+        function deg2rad(deg: number): number {
+          return deg * (Math.PI/180);
+        }
+        
+        const distanceKm = getDistanceFromLatLonInKm(
+          guessLocation.lat, 
+          guessLocation.lng, 
+          actualLocation.lat, 
+          actualLocation.lng
+        );
+        
+        // Calculate score based on distance (closer = higher score)
+        // Max score is 100, min is 0
+        // Score decreases as distance increases up to 5000km
+        const maxDistance = 5000; // km
+        const score = Math.max(0, 100 - Math.min(100, (distanceKm / maxDistance) * 100));
+        
+        locationAccuracy = {
+          score: Math.round(score),
+          distanceKm: Math.round(distanceKm * 10) / 10 // Round to 1 decimal place
+        };
+      } catch (e) {
+        console.error('Error calculating location accuracy:', e);
+      }
     }
+      
+    // Create a mock time accuracy result to handle type issues
+    let timeAccuracy = { score: 0 };
     
-    // Otherwise calculate from raw data
-    const img = images.find(img => img.id === result.imageId);
-    if (!img || result.distanceKm === null || result.guessYear === null) {
-      return { roundXP: 0, roundPercent: 0 };
+    // Only calculate if we have a valid year guess
+    if (result.guessYear) {
+      try {
+        // Use the existing calculateTimeAccuracy function
+        const timeResult = calculateTimeAccuracy(result.guessYear, img.year);
+        // Ensure we have the correct type structure
+        timeAccuracy = typeof timeResult === 'number' ? { score: timeResult } : timeResult;
+      } catch (e) {
+        console.error('Error calculating time accuracy:', e);
+      }
     }
-    
-    const locationXP = formatInteger(calculateLocationAccuracy(result.distanceKm));
-    const timeXP = formatInteger(calculateTimeAccuracy(result.guessYear, img.year));
-    
+
     return {
-      roundXP: locationXP + timeXP,
-      roundPercent: ((locationXP + timeXP) / 200) * 100
+      // Ensure we're using the score properties safely
+      roundXP: (locationAccuracy?.score || 0) + (timeAccuracy?.score || 0),
+      roundPercent: (((locationAccuracy?.score || 0) + (timeAccuracy?.score || 0)) / 200) * 100,
+      locationAccuracy,
+      timeAccuracy,
+      timeDifference: result.guessYear ? Math.abs(result.guessYear - img.year) : 0,
+      distanceKm: locationAccuracy.distanceKm,
+      hintPenalty: result.hintsUsed ? result.hintsUsed * 30 : 0,
+      hintPenaltyPercent: result.hintsUsed ? (result.hintsUsed * 30 / 200) * 100 : 0
     };
   });
+
+  // Filter out null values and calculate final score
+  const validScores = memoizedRoundScores.filter(score => score !== null);
+  const { finalXP, finalPercent } = useMemo(() => {
+    return calculateFinalScore(validScores.map(score => ({
+      roundXP: score.roundXP,
+      roundPercent: score.roundPercent,
+      hintPenalty: score.hintPenalty,
+      hintPenaltyPercent: score.hintPenaltyPercent
+    })));
+  }, [validScores]);
   
-  // Calculate final score and percentage
-  const { finalXP, finalPercent } = calculateFinalScore(roundScores);
-  
-  // Use the calculated values
   const totalScore = formatInteger(finalXP);
   const totalPercentage = formatInteger(finalPercent);
 
+  if (!gameId || roundResults.length === 0) {
+    return null;
+  }
+
   return (
     <div className="min-h-screen bg-history-light dark:bg-history-dark flex flex-col">
-      {/* Navbar from TestLayout - exactly like Home page */}
       <nav className="sticky top-0 z-50 bg-history-primary text-white shadow-md">
         <div className="max-w-7xl mx-auto px-4">
           <div className="flex items-center justify-between h-16">
             <div className="flex items-center">
               <Logo />
             </div>
-            
-            {/* Show global stats outside of games */}
             <div className="flex items-center gap-2">
-              <Badge variant="accuracy" className="flex items-center gap-1 text-sm" aria-label={`Global Accuracy: ${Math.round(globalAccuracy || 0)}%`}>
-                <Target className="h-4 w-4" />
-                <span>{Math.round(globalAccuracy || 0)}%</span>
-              </Badge>
-              <Badge variant="xp" className="flex items-center gap-1 text-sm" aria-label={`Global XP: ${Math.round(globalXP || 0)}`}>
-                <Zap className="h-4 w-4" />
-                <span>{Math.round(globalXP || 0)}</span>
-              </Badge>
+              <NavProfile />
             </div>
-            
-            <NavProfile />
           </div>
         </div>
       </nav>
       
-      <div className="flex-grow p-4 sm:p-6 md:p-8 pb-36"> {/* Add extra bottom padding for sticky footer */}
+      <div className="flex-grow p-4 sm:p-6 md:p-8 pb-36">
         <div className="max-w-4xl mx-auto w-full">
           <div className="text-center mb-8 sm:mb-12">
             <h1 className="text-3xl sm:text-4xl font-bold mb-3 sm:mb-4 text-history-primary dark:text-history-light">
               Final Score
             </h1>
-            <div className="flex justify-center items-center gap-4 mt-2">
-              <Badge variant="accuracy" className="text-lg flex items-center gap-1" aria-label={`Accuracy: ${formatInteger(totalPercentage)}%`}>
-                <Target className="h-4 w-4" />
-                <span>{formatInteger(totalPercentage)}%</span>
-              </Badge>
-              <Badge variant="xp" className="text-lg flex items-center gap-1" aria-label={`XP: ${formatInteger(totalScore)}`}>
-                <Zap className="h-4 w-4" />
-                <span>{formatInteger(totalScore)}</span>
-              </Badge>
+            <div className="flex justify-center gap-6 mb-4">
+              <div className="flex flex-col items-center">
+                <Badge variant="outline" className="mb-2 text-lg px-3 py-1 border-2 border-history-primary text-history-primary">
+                  <Target className="h-4 w-4 mr-1" />
+                  {totalPercentage}%
+                </Badge>
+                <span className="text-sm text-gray-500 dark:text-gray-400">Accuracy</span>
+              </div>
+              <div className="flex flex-col items-center">
+                <Badge variant="outline" className="mb-2 text-lg px-3 py-1 border-2 border-history-primary text-history-primary">
+                  <Zap className="h-4 w-4 mr-1" />
+                  {totalScore}
+                </Badge>
+                <span className="text-sm text-gray-500 dark:text-gray-400">Points</span>
+              </div>
             </div>
           </div>
 
-        <div className="grid gap-6 mb-8">
-          {images.map((image, index) => {
-            const result = roundResults?.[index];
-            const yearDifference = result?.guessYear && image.year ? 
-              Math.abs(result.guessYear - image.year) : 0;
-            let roundPercentage = 0;
-            if (result?.accuracy !== undefined) {
-              roundPercentage = result.accuracy;
-            } else if (result?.xpWhere !== undefined && result?.xpWhen !== undefined) {
-              roundPercentage = ((result.xpWhere + result.xpWhen) / 200) * 100;
-            } else if (result?.distanceKm !== null && result?.guessYear !== null) {
-              const locationXP = formatInteger(calculateLocationAccuracy(result.distanceKm || 0));
-              const timeXP = formatInteger(calculateTimeAccuracy(result.guessYear || 0, image.year || 0));
-              roundPercentage = ((locationXP + timeXP) / 200) * 100;
-            }
-            // Toggle state for details
-            const [open, setOpen] = React.useState(false);
-            return (
-              <div
-                key={image.id}
-                className="bg-white dark:bg-gray-800 rounded-xl shadow-lg overflow-hidden"
-              >
-                <div className="flex flex-col md:flex-row">
-                  <div className="md:w-1/3">
-                    <img
-                      src={image.url}
-                      alt={`Round ${index + 1} - ${image.title}`}
-                      className="w-full h-48 object-cover"
-                    />
-                  </div>
-                  <div className="p-4 md:w-2/3">
-                    <div className="flex justify-between items-start mb-4">
-                      <div
-                        className="cursor-pointer w-full"
-                        onClick={() => setOpen(!open)}
-                        tabIndex={0}
-                        role="button"
-                        aria-expanded={open}
-                        aria-controls={`details-${image.id}`}
-                      >
-                        <h3 className="text-lg font-bold text-history-primary dark:text-history-light">
-                          {image.title || ""}
-                        </h3>
-                        <div className="flex items-center space-x-2 mt-1">
-                          <Badge variant="accuracy" className="flex items-center gap-1" aria-label={`Accuracy: ${formatInteger(roundPercentage)}%`}>
-                            <Target className="h-3 w-3" />
-                            <span>{formatInteger(roundPercentage)}%</span>
-                          </Badge>
-                          <Badge variant="xp" className="flex items-center gap-1" aria-label={`XP: ${formatInteger(result?.score || 0)}`}>
-                            <Zap className="h-3 w-3" />
-                            <span>{formatInteger(result?.score || 0)}</span>
-                          </Badge>
-                        </div>
-                        <p className="text-xs text-muted-foreground mt-1">
-                          <Badge variant="selectedValue" className="text-xs mt-1">
-                            {image.location_name} ({image.year})
-                          </Badge>
-                        </p>
-                      </div>
-                    </div>
-                    {open && (
-                      <div className="details" id={`details-${image.id}`}> 
-                        <div className="grid grid-cols-2 gap-4 mt-4">
-                          <div className="p-3 rounded-lg bg-history-primary/10 dark:bg-history-primary/20">
-                            <div className="flex items-center mb-2">
-                              <MapPin className="h-4 w-4 mr-1 text-history-primary" />
-                              <span className="text-sm font-medium text-history-primary dark:text-history-light">Where</span>
-                            </div>
-                            <div className="flex justify-between items-center">
-                              <span className="text-sm text-history-primary dark:text-history-light">
-                                {result?.distanceKm === 0 ? (
-                                  <span className="text-green-600 dark:text-green-400 font-medium">Perfect!</span>
-                                ) : (
-                                  result?.distanceKm == null ? '? km off' : `${formatInteger(result.distanceKm)} km off`
-                                )}
-                              </span>
-                              <div className="flex items-center gap-2">
-                                <Badge variant="accuracy" className="text-xs flex items-center gap-1" aria-label={`Location Accuracy: ${formatInteger(calculateLocationAccuracy(result?.distanceKm || 0))}%`}>
-                                  <Target className="h-2 w-2" />
-                                  <span>{formatInteger(calculateLocationAccuracy(result?.distanceKm || 0))}%</span>
-                                </Badge>
-                                <Badge variant="xp" className="text-xs flex items-center gap-1" aria-label={`Location XP: ${formatInteger(calculateLocationAccuracy(result?.distanceKm || 0))}`}>
-                                  <Zap className="h-2 w-2" />
-                                  <span>{formatInteger(calculateLocationAccuracy(result?.distanceKm || 0))}</span>
-                                </Badge>
-                              </div>
-                            </div>
-                          </div>
-                          <div className="p-3 rounded-lg bg-history-primary/10 dark:bg-history-primary/20">
-                            <div className="flex items-center mb-2">
-                              <Calendar className="h-4 w-4 mr-1 text-history-primary" />
-                              <span className="text-sm font-medium text-history-primary dark:text-history-light">When</span>
-                            </div>
-                            <div className="flex justify-between items-center">
-                              <span className="text-sm text-history-primary dark:text-history-light">
-                                {yearDifference === 0 ? (
-                                  <span className="text-green-600 dark:text-green-400 font-medium">Perfect!</span>
-                                ) : (
-                                  yearDifference === 0 ? (<span className="text-green-600 dark:text-green-400 font-medium">Perfect!</span>) : (`${formatInteger(yearDifference)} ${yearDifference === 1 ? 'year' : 'years'} off`)
-                                )}
-                              </span>
-                              <div className="flex items-center gap-2">
-                                <Badge variant="accuracy" className="text-xs flex items-center gap-1" aria-label={`Time Accuracy: ${formatInteger(calculateTimeAccuracy(result?.guessYear || 0, image.year || 0))}%`}>
-                                  <Target className="h-2 w-2" />
-                                  <span>{formatInteger(calculateTimeAccuracy(result?.guessYear || 0, image.year || 0))}%</span>
-                                </Badge>
-                                <Badge variant="xp" className="text-xs flex items-center gap-1" aria-label={`Time XP: ${formatInteger(result?.xpWhen ?? calculateTimeAccuracy(result?.guessYear || 0, image.year || 0))}`}>
-                                  <Zap className="h-2 w-2" />
-                                  <span>{formatInteger(result?.xpWhen ?? calculateTimeAccuracy(result?.guessYear || 0, image.year || 0))}</span>
-                                </Badge>
-                              </div>
-                            </div>
-                          </div>
-                        </div>
-                      </div>
-                    )}
-                  </div>
-                </div>
-              </div>
-            );
-          })}
+          <div className="grid gap-6 mb-8">
+            {images.map((imageFromContext: any, index: number) => {
+              const resultFromContext: any = roundResults[index];
+              const score = memoizedRoundScores[index];
+              
+              // Ensure resultFromContext and score are defined before rendering card
+              if (!resultFromContext || !score) return null;
+
+              // Transform data from memoizedRoundScores (which holds original context structures) 
+              // to match RoundDetailCard's expected props (IndexGameImage, IndexRoundResult)
+              const imageForCard: IndexGameImage = {
+                id: score.originalImageId, // Use data stored in memoizedScore
+                url: score.originalImageUrl || '', 
+                year: score.originalYear,
+                latitude: score.originalLatitude,
+                longitude: score.originalLongitude,
+              };
+
+              const resultForCard: IndexRoundResult = {
+                guessLocation: score.originalGuessCoordinates ? 
+                  { lat: score.originalGuessCoordinates.lat, lng: score.originalGuessCoordinates.lng } : 
+                  { lat: 0, lng: 0 }, // Default if no guess
+                guessYear: score.originalGuessYear,
+                hintsUsed: score.originalHintsUsed,
+              };
+
+              return (
+                <RoundDetailCard 
+                  key={imageForCard.id}
+                  image={imageForCard}
+                  result={resultForCard}
+                  score={score}
+                  isOpen={open[imageForCard.id] || false}
+                  onToggleDetails={toggleDetails}
+                  index={index}
+                />
+              );
+            })}
+          </div>
         </div>
 
-
+        {/* Non-sticky Share and Home Buttons at bottom of content */}
+        <div className="max-w-md mx-auto w-full flex flex-row gap-4 px-4 py-6 mt-8 mb-24">
+          <Button
+            onClick={() => {
+              alert("Share functionality coming soon!");
+            }}
+            variant="outline"
+            className="flex-1 border-history-primary text-history-primary hover:bg-history-primary/10 gap-2 py-6 text-base"
+            size="lg"
+          >
+            <Share2 size={20} />
+            Share
+          </Button>
+          <Button
+            onClick={handleHome}
+            variant="outline"
+            className="flex-1 gap-2 py-6 text-base"
+            size="lg"
+          >
+            <Home size={20} />
+            Home
+          </Button>
+        </div>
       </div>
-      {/* Non-sticky Share and Home Buttons at bottom of content */}
-      <div className="max-w-md mx-auto w-full flex flex-row gap-4 px-4 py-6 mt-8 mb-24">
-        <Button
-          onClick={() => {
-            // Share functionality would go here
-            alert("Share functionality coming soon!");
-          }}
-          variant="outline"
-          className="flex-1 border-history-primary text-history-primary hover:bg-history-primary/10 gap-2 py-6 text-base"
-          size="lg"
-        >
-          <Share2 size={20} />
-          Share
-        </Button>
-        <Button
-          onClick={handleHome}
-          variant="outline"
-          className="flex-1 gap-2 py-6 text-base"
-          size="lg"
-        >
-          <Home size={20} />
-          Home
-        </Button>
-      </div>
-      </div>
+      
       {/* Sticky Play Again Button */}
       <div className="fixed bottom-0 left-0 w-full z-50 bg-white/90 dark:bg-gray-900/95 backdrop-blur shadow-[0_-2px_12px_rgba(0,0,0,0.05)] px-4 py-3 flex justify-center items-center border-t border-gray-200 dark:border-gray-700">
         <Button
@@ -507,4 +482,4 @@ const FinalResultsPage = () => {
   );
 };
 
-export default FinalResultsPage; 
+export default FinalResultsPage;

@@ -4,12 +4,13 @@ import { BrowserRouter, Routes, Route, Navigate, useNavigate, createBrowserRoute
 import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
-import { ThemeProvider } from "next-themes";
+import { ThemeProvider, useTheme } from "next-themes";
 import { AuthProvider, useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
 import { GameProvider, useGame } from "@/contexts/GameContext"; // Added useGame
 import { LogProvider, useConsoleLogging } from "@/contexts/LogContext";
 import { LogWindowModal } from "@/components/LogWindowModal";
+import { SystemLogButton } from "@/components/SystemLogButton";
 
 import TestLayout from "./layouts/TestLayout";
 import HomePage from "./pages/HomePage";
@@ -79,19 +80,15 @@ const AuthRedirectHandler = () => {
   return null;
 };
 
-// Component to log global XP changes
-const GlobalXPLogger = () => {
+// Component to log game state changes
+const GameStateLogger = () => {
   const gameContext = useGame();
-  const globalXP = gameContext?.globalXP;
 
   useEffect(() => {
-    if (globalXP !== undefined) {
-      console.log('[App.tsx] Global XP state changed:', { 
-        globalXP,
-        timestamp: new Date().toISOString()
-      });
-    }
-  }, [globalXP]);
+    console.log('[App.tsx] Game state changed:', { 
+      timestamp: new Date().toISOString()
+    });
+  }, [gameContext]);
 
   return null; // This component doesn't render anything
 };
@@ -102,6 +99,18 @@ const ConsoleLogger = () => {
   return null;
 };
 
+// Component to log theme changes
+const ThemeDebugger = () => {
+  const { theme, setTheme } = useTheme();
+  
+  useEffect(() => {
+    console.log('Current theme:', theme);
+    console.log('Document classes:', document.documentElement.className);
+  }, [theme]);
+  
+  return null;
+};
+
 const App = () => {
   const queryClient = new QueryClient();
 
@@ -109,9 +118,11 @@ const App = () => {
     <React.StrictMode>
       <ThemeProvider 
         attribute="class" 
-        enableSystem
+        enableSystem={false}
         disableTransitionOnChange
+        defaultTheme="light"
       >
+        <ThemeDebugger />
         <QueryClientProvider client={queryClient}>
           <LogProvider>
             <AuthProvider>
@@ -120,10 +131,11 @@ const App = () => {
                 <Sonner />
                 <ConsoleLogger />
                 <LogWindowModal />
+                <SystemLogButton />
                 <BrowserRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
                   <AuthRedirectHandler />
                   <GameProvider>
-                    <GlobalXPLogger />
+                    <GameStateLogger />
                     <Routes>
                       <Route path="/test" element={<TestLayout />}>
                         <Route index element={<HomePage />} />
@@ -132,7 +144,8 @@ const App = () => {
                         <Route path="profile" element={<ProfilePage />} />
                         <Route path="settings" element={<SettingsPage />} />
                         <Route path="room" element={<GameRoomPage />} />
-                        <Route path="game" element={<GameRoundPage />} />
+                        <Route path="game" element={<Navigate to="/test/game/solo/1" replace />} />
+                        <Route path="game/solo/:roundNumber" element={<GameRoundPage mode="solo" />} />
                         <Route path="friends" element={<FriendsPage />} />
                         <Route path="admin" element={<AdminPage />}>
                           <Route index element={<Navigate to="images" replace />} />
@@ -140,7 +153,7 @@ const App = () => {
                           <Route path="badges" element={<AdminBadgesPage />} />
                           <Route path="users" element={<AdminUsersPage />} />
                         </Route>
-                        <Route path="game/room/:roomId/round/:roundNumber" element={<GameRoundPage />} />
+                        <Route path="game/multi/:roomId/round/:roundNumber" element={<GameRoundPage mode="multi" />} />
                         <Route path="game/room/:roomId/round/:roundNumber/results" element={<RoundResultsPage />} />
                       </Route>
                       {/* Final Results page with its own MainNavbar */}

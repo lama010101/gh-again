@@ -1,0 +1,292 @@
+import React, { useState, useEffect } from "react";
+import { Button } from "@/components/ui/button";
+import { useNavigate } from "react-router-dom";
+import { Share2, Home, MapPin, Calendar, Target, Zap, Loader } from "lucide-react";
+import { useGame } from "@/contexts/GameContext";
+import { Badge } from "@/components/ui/badge";
+import Logo from "@/components/Logo";
+import { NavProfile } from "@/components/NavProfile";
+import { formatInteger } from '@/utils/format';
+import { 
+  calculateFinalScore,
+  calculateTimeAccuracy,
+  calculateLocationAccuracy,
+  getTimeDifferenceDescription
+} from "@/utils/gameCalculations";
+
+// Define interfaces for type safety
+interface RoundScore {
+  roundXP: number;
+  roundPercent: number;
+  locationAccuracy: { score: number; distanceKm: number };
+  timeAccuracy: { score: number };
+  timeDifference: number;
+  distanceKm: number;
+  hintPenalty?: number;
+  hintPenaltyPercent?: number;
+}
+
+const FinalResultsPage: React.FC = () => {
+  const navigate = useNavigate();
+  const [open, setOpen] = useState<Record<string, boolean>>({});
+  
+  const { 
+    gameId, 
+    images, 
+    roundResults,
+    isLoading, 
+    error,
+    resetGame,
+    startGame
+  } = useGame();
+
+  const handlePlayAgain = async () => {
+    resetGame();
+    navigate('/');
+    await startGame('solo');
+  };
+
+  const handleHome = () => {
+    navigate('/');
+  };
+
+  useEffect(() => {
+    if (!isLoading && (!gameId || roundResults.length === 0)) {
+      navigate('/');
+    }
+  }, [isLoading, gameId, roundResults, navigate]);
+
+  const toggleDetails = (imageId: string) => {
+    setOpen(prev => ({
+      ...prev,
+      [imageId]: !prev[imageId]
+    }));
+  };
+
+  if (isLoading) {
+    return (
+      <div className="min-h-screen bg-history-light dark:bg-history-dark p-8 flex items-center justify-center">
+        <div className="text-center">
+          <div className="text-lg">Loading...</div>
+        </div>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="min-h-screen bg-history-light dark:bg-history-dark p-8 flex items-center justify-center">
+        <div className="text-center">
+          <div className="text-red-500 text-5xl mb-4">⚠️</div>
+          <h2 className="text-2xl font-bold mb-4">Error Loading Results</h2>
+          <p className="mb-6">{error.message}</p>
+          <Button
+            onClick={() => navigate("/")}
+            className="bg-history-primary hover:bg-history-primary/90 text-white"
+          >
+            Return to Home
+          </Button>
+        </div>
+      </div>
+    );
+  }
+
+  if (!images || images.length === 0) {
+    return (
+      <div className="min-h-screen bg-history-light dark:bg-history-dark p-8 flex items-center justify-center">
+        <div className="text-center">
+          <p className="mb-4">No game data found for this session.</p>
+          <Button onClick={handlePlayAgain}>Start New Game</Button>
+        </div>
+      </div>
+    );
+  }
+
+  const roundScores: RoundScore[] = roundResults.map((result, index) => {
+    const img = images[index];
+    if (!img) return {
+      roundXP: 0,
+      roundPercent: 0,
+      locationAccuracy: { score: 0, distanceKm: 0 },
+      timeAccuracy: { score: 0 },
+      timeDifference: 0,
+      distanceKm: 0
+    };
+
+    const guessLocation = result.guessCoordinates ? {
+      lat: result.guessCoordinates.lat,
+      lng: result.guessCoordinates.lng
+    } : null;
+    
+    const actualLocation = {
+      lat: img.latitude,
+      lng: img.longitude
+    };
+
+    const locationAccuracy = guessLocation ? 
+      calculateLocationAccuracy(guessLocation, actualLocation) : 
+      { score: 0, distanceKm: 0 };
+      
+    const timeAccuracy = result.guessYear ? 
+      calculateTimeAccuracy(result.guessYear, img.year) : 
+      { score: 0 };
+      
+    const roundXP = locationAccuracy.score + timeAccuracy.score;
+    const roundPercent = (roundXP / 200) * 100;
+
+    return {
+      roundXP,
+      roundPercent,
+      locationAccuracy,
+      timeAccuracy,
+      timeDifference: result.guessYear ? Math.abs(result.guessYear - img.year) : 0,
+      distanceKm: locationAccuracy.distanceKm,
+      hintPenalty: result.hintsUsed * 30,
+      hintPenaltyPercent: (result.hintsUsed * 30 / 200) * 100
+    };
+  });
+  
+  const { finalXP, finalPercent } = calculateFinalScore(roundScores.map(score => ({
+    roundXP: score.roundXP,
+    roundPercent: score.roundPercent,
+    hintPenalty: score.hintPenalty,
+    hintPenaltyPercent: score.hintPenaltyPercent
+  })));
+  
+  const totalScore = formatInteger(finalXP);
+  const totalPercentage = formatInteger(finalPercent);
+
+  if (!gameId || roundResults.length === 0) {
+    return null;
+  }
+
+  return (
+    <div className="min-h-screen bg-history-light dark:bg-history-dark flex flex-col">
+      <nav className="sticky top-0 z-50 bg-history-primary text-white shadow-md">
+        <div className="max-w-7xl mx-auto px-4">
+          <div className="flex items-center justify-between h-16">
+            <div className="flex items-center">
+              <Logo />
+            </div>
+            <div className="flex items-center gap-2">
+              <NavProfile />
+            </div>
+          </div>
+        </div>
+      </nav>
+      
+      <div className="flex-grow p-4 sm:p-6 md:p-8 pb-36">
+        <div className="max-w-4xl mx-auto w-full">
+          <div className="text-center mb-8 sm:mb-12">
+            <h1 className="text-3xl sm:text-4xl font-bold mb-3 sm:mb-4 text-history-primary dark:text-history-light">
+              Final Score
+            </h1>
+            <div className="flex justify-center gap-6 mb-4">
+              <div className="flex flex-col items-center">
+                <Badge variant="outline" className="mb-2 text-lg px-3 py-1 border-2 border-history-primary text-history-primary">
+                  <Target className="h-4 w-4 mr-1" />
+                  {totalPercentage}%
+                </Badge>
+                <span className="text-sm text-gray-500 dark:text-gray-400">Accuracy</span>
+              </div>
+              <div className="flex flex-col items-center">
+                <Badge variant="outline" className="mb-2 text-lg px-3 py-1 border-2 border-history-primary text-history-primary">
+                  <Zap className="h-4 w-4 mr-1" />
+                  {totalScore}
+                </Badge>
+                <span className="text-sm text-gray-500 dark:text-gray-400">Points</span>
+              </div>
+            </div>
+          </div>
+
+          <div className="grid gap-6 mb-8">
+            {images.map((image, index) => {
+              const result = roundResults[index];
+              const score = roundScores[index];
+              
+              return (
+                <div
+                  key={image.id}
+                  className="bg-white dark:bg-gray-800 rounded-xl shadow-lg overflow-hidden"
+                >
+                  <div className="flex flex-col md:flex-row">
+                    <div className="md:w-1/3">
+                      <img
+                        src={image.image_url}
+                        alt={`Round ${index + 1} - ${image.title}`}
+                        className="w-full h-48 md:h-full object-cover"
+                      />
+                    </div>
+                    <div className="p-4 md:w-2/3">
+                      <div className="flex justify-between items-start mb-4">
+                        <div
+                          className="cursor-pointer w-full"
+                          onClick={() => toggleDetails(image.id)}
+                        >
+                          <h3 className="text-xl font-bold mb-1">{image.title}</h3>
+                          <p className="text-sm text-gray-600 dark:text-gray-300 mb-2">
+                            {image.location_name}
+                          </p>
+                          
+                          <div className="flex gap-2 items-center mt-2">
+                            <Badge className="bg-history-primary/10 text-history-primary border-history-primary">
+                              <MapPin className="h-3 w-3 mr-1" />
+                              {score.distanceKm ? `${formatInteger(score.distanceKm)} km` : 'No guess'}
+                            </Badge>
+                            
+                            <Badge className="bg-history-primary/10 text-history-primary border-history-primary">
+                              <Calendar className="h-3 w-3 mr-1" />
+                              {result.guessYear ? `${result.guessYear} (${score.timeDifference} years off)` : 'No guess'}
+                            </Badge>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+
+        {/* Non-sticky Share and Home Buttons at bottom of content */}
+        <div className="max-w-md mx-auto w-full flex flex-row gap-4 px-4 py-6 mt-8 mb-24">
+          <Button
+            onClick={() => {
+              alert("Share functionality coming soon!");
+            }}
+            variant="outline"
+            className="flex-1 border-history-primary text-history-primary hover:bg-history-primary/10 gap-2 py-6 text-base"
+            size="lg"
+          >
+            <Share2 size={20} />
+            Share
+          </Button>
+          <Button
+            onClick={handleHome}
+            variant="outline"
+            className="flex-1 gap-2 py-6 text-base"
+            size="lg"
+          >
+            <Home size={20} />
+            Home
+          </Button>
+        </div>
+      </div>
+      
+      {/* Sticky Play Again Button */}
+      <div className="fixed bottom-0 left-0 w-full z-50 bg-white/90 dark:bg-gray-900/95 backdrop-blur shadow-[0_-2px_12px_rgba(0,0,0,0.05)] px-4 py-3 flex justify-center items-center border-t border-gray-200 dark:border-gray-700">
+        <Button
+          onClick={handlePlayAgain}
+          className="w-full max-w-xs bg-history-primary hover:bg-history-primary/90 text-white gap-2 py-6 text-base"
+          size="lg"
+        >
+          <Loader size={20} />
+          Play Again
+        </Button>
+      </div>
+    </div>
+  );
+};
+
+export default FinalResultsPage;

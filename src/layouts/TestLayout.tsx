@@ -8,7 +8,7 @@ import { Target, Zap } from "lucide-react";
 
 const TestLayout = () => {
   const location = useLocation();
-  const { totalGameAccuracy, totalGameXP, globalAccuracy, globalXP } = useGame();
+  const { totalGameAccuracy, totalGameXP } = useGame();
   
   // Determine if we're in game context (active game or round results, but NOT final-results)
   const isGameContext = location.pathname.includes('/game') || 
@@ -27,13 +27,13 @@ const TestLayout = () => {
               
               {/* Show global stats outside of games */}
               <div className="flex items-center gap-2">
-                <Badge variant="accuracy" className="flex items-center gap-1 text-sm" aria-label={`Global Accuracy: ${Math.round(globalAccuracy)}%`}>
+                <Badge variant="outline" className="flex items-center gap-1 px-2 py-1 bg-white/10">
                   <Target className="h-4 w-4" />
-                  <span>{Math.round(globalAccuracy)}%</span>
+                  {totalGameAccuracy ? `${totalGameAccuracy.toFixed(0)}%` : '-'}
                 </Badge>
-                <Badge variant="xp" className="flex items-center gap-1 text-sm" aria-label={`Global XP: ${Math.round(globalXP)}`}>
+                <Badge variant="outline" className="flex items-center gap-1 px-2 py-1 bg-white/10">
                   <Zap className="h-4 w-4" />
-                  <span>{Math.round(globalXP)}</span>
+                  {totalGameXP ? totalGameXP.toFixed(0) : '-'}
                 </Badge>
               </div>
               

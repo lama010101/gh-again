@@ -1,5 +1,5 @@
 import { useNavigate, useParams } from 'react-router-dom';
-import { useEffect, useState, useCallback } from 'react';
+import React, { useEffect, useState, useCallback, useMemo } from 'react';
 import ResultsLayout2 from "@/components/layouts/ResultsLayout2"; // Use the original layout
 import { useToast } from "@/components/ui/use-toast";
 import { Loader } from 'lucide-react';
@@ -10,8 +10,8 @@ import { awardRoundBadges } from '@/utils/badges/badgeService';
 import { Badge } from '@/utils/badges/types';
 import { toast as sonnerToast } from '@/components/ui/sonner';
 import { ConfirmNavigationDialog } from '@/components/game/ConfirmNavigationDialog';
-// Import RoundResult type from context if not already imported by ResultsLayout2 or define mapping
-import { RoundResult as ContextRoundResult, GameImage } from '@/contexts/GameContext';
+// Import types from the types file instead of from context
+import { RoundResult, GameImage, GameErrorType } from '@/types/game';
 // Import the RoundResult type expected by ResultsLayout2
 import { RoundResult as LayoutRoundResultType } from '@/utils/resultsFetching';
 // Import standardized scoring system
@@ -140,7 +140,7 @@ const RoundResultsPage = () => {
 
   // Mapping function: Context -> Layout Type
   const mapToLayoutResultType = (
-      ctxResult: ContextRoundResult | undefined,
+      ctxResult: RoundResult | undefined,
       img: GameImage | null
   ): LayoutRoundResultType | null => {
       if (!ctxResult || !img) return null;
@@ -204,7 +204,7 @@ const RoundResultsPage = () => {
           // Include image details if the type definition requires them
           imageTitle: img.title || 'Untitled',
           imageDescription: img.description || 'No description.',
-          imageUrl: img.url || 'placeholder.jpg',
+          imageUrl: img.image_url || 'placeholder.jpg',
           earnedBadges: earnedBadges,
           // Include other potential fields if defined in the imported type
           // roundNumber: ctxResult.roundIndex + 1, // Example if needed
@@ -214,13 +214,14 @@ const RoundResultsPage = () => {
       return layoutResult;
   }
 
-  // Generate the result in the format the layout expects
-  const resultForLayout = mapToLayoutResultType(contextResult, currentImage);
+  // Generate the result in the format the layout expects using useMemo
+  const resultForLayout = React.useMemo(() => 
+    mapToLayoutResultType(contextResult, currentImage),
+    [contextResult, currentImage]
+  );
 
   // Handle navigation to next round or end of game
-  const handleNext = () => {
-    if (navigating) return; // Prevent multiple clicks
-    
+  const handleNext = useCallback(() => {
     if (!roomId) {
       toast({
         title: "Error",
@@ -229,9 +230,9 @@ const RoundResultsPage = () => {
       });
       return;
     }
-    
-    setNavigating(true);
 
+    // Don't prevent navigation if already navigating - this caused the issue
+    // where clicking Next Round wouldn't work
     const isLastRound = currentRoundIndex === totalRounds - 1;
 
     if (isLastRound) {
@@ -242,10 +243,10 @@ const RoundResultsPage = () => {
       console.log(`Navigating to next round: ${nextRoundNumber}`);
       navigate(`/test/game/room/${roomId}/round/${nextRoundNumber}`);
     }
-    
-    // No need to call advanceToNextRound, context handles state
-    // setNavigating(false); // Navigation happens, so no need to unset here unless navigation fails
-  };
+
+    // Set navigating state after navigation starts
+    setNavigating(true);
+  }, [roomId, currentRoundIndex, totalRounds, navigate, roundNumber, toast]);
 
   // Show loading state from context (if game is still loading initially)
   // Note: This page might not be reachable if context is loading due to GameRoundPage checks
@@ -266,7 +267,9 @@ const RoundResultsPage = () => {
       <div className="min-h-screen bg-gray-100 dark:bg-gray-900 flex items-center justify-center">
         <div className="text-center p-4 bg-background rounded shadow">
           <h2 className="text-xl font-semibold text-destructive mb-2">Error Loading Game</h2>
-          <p className="text-muted-foreground mb-3">{contextError}</p>
+          <p className="text-muted-foreground mb-3">{typeof contextError === 'string' ? contextError : 
+            (contextError && typeof contextError === 'object' && 'message' in contextError) ? 
+            contextError.message : 'Unknown error'}</p>
            <Button onClick={() => confirmNavigation(handleNavigateHome)}>Return Home</Button>
         </div>
       </div>
@@ -275,20 +278,46 @@ const RoundResultsPage = () => {
 
   // Handle case where results for this specific round aren't found in context yet OR image is missing
   if (!resultForLayout) {
+    // Check specifically what's missing to provide better error messages
+    const missingImage = !currentImage;
+    const missingResult = !contextResult;
+    
+    console.log(`Debug - Round Results Page: Round ${roundNumber}, Missing Image: ${missingImage}, Missing Result: ${missingResult}`);
+    console.log(`Debug - Context Data: Images length: ${images.length}, Results length: ${roundResults.length}`);
+    
+    if (missingImage) {
+      console.log(`Debug - No image found for round index ${currentRoundIndex}`);
+    }
+    
+    if (missingResult) {
+      console.log(`Debug - No result found for round index ${currentRoundIndex}`);
+      console.log(`Debug - Available results:`, roundResults.map(r => r.roundIndex));
+    }
+    
     return (
       <div className="min-h-screen bg-gray-100 dark:bg-gray-900 flex items-center justify-center">
-        <div className="text-center p-4 bg-background rounded shadow">
+        <div className="text-center p-4 bg-background rounded shadow max-w-md">
           <h2 className="text-xl font-semibold text-destructive mb-2">Results Not Found</h2>
           <p className="text-muted-foreground mb-3">
-            Could not find {!currentImage ? 'image data' : 'results'} for round {roundNumber}.
-            {!contextResult && currentImage && ' Please play the round first.'}
+            Could not find {missingImage ? 'image data' : 'results'} for round {roundNumber}.
+            {missingResult && !missingImage && ' Please play the round first.'}
+            {missingImage && ' Game data might be incomplete.'}
           </p>
-          <Button onClick={() => navigate(`/test/game/room/${roomId}/round/${roundNumber}`)}>
-            Go Back to Round
-          </Button>
-          <Button variant="link" onClick={() => confirmNavigation(handleNavigateHome)}>
-            Return Home
-          </Button>
+          <div className="flex flex-col gap-2 sm:flex-row sm:justify-center">
+            <Button 
+              onClick={() => navigate(`/test/game/room/${roomId}/round/${roundNumber}`)}
+              className="w-full sm:w-auto"
+            >
+              Go Back to Round
+            </Button>
+            <Button 
+              variant="outline" 
+              onClick={() => confirmNavigation(handleNavigateHome)}
+              className="w-full sm:w-auto"
+            >
+              Return Home
+            </Button>
+          </div>
         </div>
       </div>
     );
