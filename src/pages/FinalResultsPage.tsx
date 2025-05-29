@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback, useMemo } from "react";
+import { useLogs } from "@/contexts/LogContext";
 import { Button } from "@/components/ui/button";
 import { useNavigate } from "react-router-dom";
 import { Share2, Home, Target, Zap, Loader } from "lucide-react"; // MapPin, Calendar moved to RoundDetailCard
@@ -13,7 +14,8 @@ import {
   // calculateLocationAccuracy, // Now handled within useGame or specific calculation hook if further refactored
   getTimeDifferenceDescription
 } from "@/utils/gameCalculations";
-import type { GameImage as IndexGameImage, RoundResult as IndexRoundResult, Location } from '@/types'; // Import and alias types
+import type { GameImage, RoundResult } from '@/types/game'; // Import types from game.ts
+import type { Location } from '@/types'; // Import Location from index.ts
 import RoundDetailCard from '@/components/RoundDetailCard'; // Import the new component
 
 // Define interfaces for type safety
@@ -26,6 +28,15 @@ interface RoundScore {
   distanceKm: number; // Distance in kilometers between guess and actual location
   hintPenalty?: number;
   hintPenaltyPercent?: number;
+  // Fields to store original data for RoundDetailCard
+  originalImageId: string;
+  originalImageUrl: string;
+  originalYear: number;
+  originalLatitude: number;
+  originalLongitude: number;
+  originalGuessCoordinates: { lat: number; lng: number } | null;
+  originalGuessYear: number | null;
+  originalHintsUsed: number;
 }
 
 interface GameMetrics {
@@ -39,6 +50,7 @@ interface GameMetrics {
 }
 
 const FinalResultsPage: React.FC = (): JSX.Element | null => {
+  const { addLog } = useLogs();
   const navigate = useNavigate();
   const [open, setOpen] = useState<Record<string, boolean>>({});
   
@@ -137,9 +149,9 @@ const FinalResultsPage: React.FC = (): JSX.Element | null => {
 
   // Memoize roundScores calculation to prevent unnecessary recalculations
   // This now uses the types from the game context directly (image_url, guessCoordinates)
-  const memoizedRoundScores = useMemo(() => {
-    return roundResults.map((resultFromContext: any, index: number) => {
-      const imageFromContext: any = images[index]; // Assuming images from context has image_url, etc.
+  const validRoundScores = useMemo(() => {
+    return roundResults.map((resultFromContext: RoundResult, index: number) => {
+      const imageFromContext: GameImage = images[index]; // Assuming images from context has image_url, etc.
       if (!imageFromContext || !resultFromContext) return null;
 
       const guessLocationFromContext = resultFromContext.guessCoordinates; // e.g., { lat: number, lng: number } | null
@@ -199,48 +211,76 @@ const FinalResultsPage: React.FC = (): JSX.Element | null => {
         distanceKm: locationAccuracy.distanceKm,
         // These are based on the structure of RoundScore, ensure resultFromContext has hintsUsed
         hintPenalty: resultFromContext.hintsUsed ? resultFromContext.hintsUsed * 30 : 0,
-        hintPenaltyPercent: resultFromContext.hintsUsed ? (resultFromContext.hintsUsed * 30 / 200) * 100 : 0,
-        // Store original context data if needed for mapping to RoundDetailCard later
+        hintPenaltyPercent: resultFromContext.hintsUsed ? (resultFromContext.hintsUsed * 30) / 2 : 0, // Assuming 30% per hint, max 2 hints for 100% penalty on one aspect
+        // Store original context data for mapping to RoundDetailCard later
         originalImageId: imageFromContext.id,
-        originalGuessCoordinates: resultFromContext.guessCoordinates,
         originalImageUrl: imageFromContext.image_url,
         originalYear: imageFromContext.year,
         originalLatitude: imageFromContext.latitude,
         originalLongitude: imageFromContext.longitude,
+        originalGuessCoordinates: resultFromContext.guessCoordinates,
         originalGuessYear: resultFromContext.guessYear,
         originalHintsUsed: resultFromContext.hintsUsed
       };
-    });
+    }).filter(score => score !== null) as RoundScore[];
   }, [roundResults, images]);
 
+  // Memoize finalScoreData calculation
+  const finalScoreData = useMemo(() => {
+    if (!validRoundScores || validRoundScores.length === 0) {
+      return { finalXP: 0, finalPercent: 0, totalHintPenalty: 0, totalHintPenaltyPercent: 0, roundScores: [] };
+    }
+    return calculateFinalScore(validRoundScores);
+  }, [validRoundScores]);
+
+  // Log final score data when it changes
+  useEffect(() => {
+    if (finalScoreData && finalScoreData.roundScores && finalScoreData.roundScores.length > 0) {
+      addLog(`[FinalResultsPage] Final Score Data: ${JSON.stringify({
+        roundScores: finalScoreData.roundScores.map((r: RoundScore, i: number) => ({
+          round: i + 1,
+          roundXP: r.roundXP,
+          roundPercent: r.roundPercent,
+          hintPenalty: r.hintPenalty || 0,
+          hintPenaltyPercent: r.hintPenaltyPercent || 0
+        })),
+        finalXP: finalScoreData.finalXP,
+        finalPercent: finalScoreData.finalPercent,
+        totalHintPenalty: finalScoreData.totalHintPenalty,
+        totalHintPenaltyPercent: finalScoreData.totalHintPenaltyPercent
+      }, null, 2)}`);
+    }
+  }, [finalScoreData, addLog]);
+
+  // Hooks must be called before any conditional returns
+  // The useEffect for navigation handles the case where gameId or roundResults are missing post-loading
+
+  // Display loading state
   if (isLoading) {
     return (
-      <div className="min-h-screen bg-history-light dark:bg-history-dark p-8 flex items-center justify-center">
-        <div className="text-center" role="status" aria-live="polite">
-          <Loader className="h-8 w-8 animate-spin mx-auto mb-4" />
-          <div className="text-lg">Loading your results...</div>
-        </div>
+      <div className="min-h-screen flex flex-col items-center justify-center bg-gradient-to-b from-history-light to-white dark:from-history-dark dark:to-gray-900">
+        <Loader className="w-12 h-12 animate-spin text-history-accent mb-4" />
+        <p className="text-xl font-medium">Loading results...</p>
       </div>
     );
   }
 
-  if (error) {
+  // Only show error page if there's a critical error (not metrics-related) and no round results
+  if (error && (!roundResults || roundResults.length === 0)) {
     return (
-      <div className="min-h-screen bg-history-light dark:bg-history-dark p-8 flex items-center justify-center">
-        <div className="text-center" role="alert" aria-live="assertive">
-          <div className="text-red-500 text-5xl mb-4">⚠️</div>
-          <h2 className="text-2xl font-bold mb-4">Error Loading Results</h2>
-          <p className="mb-6">
-            {error.message || 'An unexpected error occurred. Please try again.'}
-          </p>
-          <Button
-            onClick={() => navigate("/")}
-            className="bg-history-primary hover:bg-history-primary/90 text-white"
-            aria-label="Return to home page"
-          >
-            Return to Home
-          </Button>
+      <div className="min-h-screen flex flex-col items-center justify-center bg-gradient-to-b from-history-dark to-black">
+        <div className="text-amber-400 mb-4">
+          <svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"></path>
+            <line x1="12" y1="9" x2="12" y2="13"></line>
+            <line x1="12" y1="17" x2="12.01" y2="17"></line>
+          </svg>
         </div>
+        <h1 className="text-2xl font-bold text-white mb-2">Error Loading Results</h1>
+        <p className="text-gray-300 mb-6">{error.message || 'Failed to load results'}</p>
+        <Button onClick={handleHome} className="bg-gray-600 hover:bg-gray-700">
+          Return to Home
+        </Button>
       </div>
     );
   }
@@ -256,107 +296,8 @@ const FinalResultsPage: React.FC = (): JSX.Element | null => {
     );
   }
 
-  const roundScores = roundResults.map((result, index) => {
-    const img = images[index];
-    if (!img) return null;
-
-    // Use guessCoordinates instead of guessLocation
-    const guessLocation = result.guessCoordinates ? {
-      lat: result.guessCoordinates.lat,
-      lng: result.guessCoordinates.lng
-    } : null;
-    
-    const actualLocation = {
-      lat: img.latitude,
-      lng: img.longitude
-    };
-
-    // Initialize location accuracy with default values
-    let locationAccuracy = { score: 0, distanceKm: 0 };
-    
-    // Only calculate if we have valid coordinates
-    if (guessLocation) {
-      try {
-        // Calculate distance using Haversine formula for more accurate Earth distance
-        function getDistanceFromLatLonInKm(lat1: number, lon1: number, lat2: number, lon2: number): number {
-          const R = 6371; // Radius of the earth in km
-          const dLat = deg2rad(lat2 - lat1);
-          const dLon = deg2rad(lon2 - lon1);
-          const a = 
-            Math.sin(dLat/2) * Math.sin(dLat/2) +
-            Math.cos(deg2rad(lat1)) * Math.cos(deg2rad(lat2)) * 
-            Math.sin(dLon/2) * Math.sin(dLon/2); 
-          const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a)); 
-          return R * c; // Distance in km
-        }
-        
-        function deg2rad(deg: number): number {
-          return deg * (Math.PI/180);
-        }
-        
-        const distanceKm = getDistanceFromLatLonInKm(
-          guessLocation.lat, 
-          guessLocation.lng, 
-          actualLocation.lat, 
-          actualLocation.lng
-        );
-        
-        // Calculate score based on distance (closer = higher score)
-        // Max score is 100, min is 0
-        // Score decreases as distance increases up to 5000km
-        const maxDistance = 5000; // km
-        const score = Math.max(0, 100 - Math.min(100, (distanceKm / maxDistance) * 100));
-        
-        locationAccuracy = {
-          score: Math.round(score),
-          distanceKm: Math.round(distanceKm * 10) / 10 // Round to 1 decimal place
-        };
-      } catch (e) {
-        console.error('Error calculating location accuracy:', e);
-      }
-    }
-      
-    // Create a mock time accuracy result to handle type issues
-    let timeAccuracy = { score: 0 };
-    
-    // Only calculate if we have a valid year guess
-    if (result.guessYear) {
-      try {
-        // Use the existing calculateTimeAccuracy function
-        const timeResult = calculateTimeAccuracy(result.guessYear, img.year);
-        // Ensure we have the correct type structure
-        timeAccuracy = typeof timeResult === 'number' ? { score: timeResult } : timeResult;
-      } catch (e) {
-        console.error('Error calculating time accuracy:', e);
-      }
-    }
-
-    return {
-      // Ensure we're using the score properties safely
-      roundXP: (locationAccuracy?.score || 0) + (timeAccuracy?.score || 0),
-      roundPercent: (((locationAccuracy?.score || 0) + (timeAccuracy?.score || 0)) / 200) * 100,
-      locationAccuracy,
-      timeAccuracy,
-      timeDifference: result.guessYear ? Math.abs(result.guessYear - img.year) : 0,
-      distanceKm: locationAccuracy.distanceKm,
-      hintPenalty: result.hintsUsed ? result.hintsUsed * 30 : 0,
-      hintPenaltyPercent: result.hintsUsed ? (result.hintsUsed * 30 / 200) * 100 : 0
-    };
-  });
-
-  // Filter out null values and calculate final score
-  const validScores = memoizedRoundScores.filter(score => score !== null);
-  const { finalXP, finalPercent } = useMemo(() => {
-    return calculateFinalScore(validScores.map(score => ({
-      roundXP: score.roundXP,
-      roundPercent: score.roundPercent,
-      hintPenalty: score.hintPenalty,
-      hintPenaltyPercent: score.hintPenaltyPercent
-    })));
-  }, [validScores]);
-  
-  const totalScore = formatInteger(finalXP);
-  const totalPercentage = formatInteger(finalPercent);
+  const totalScore = formatInteger(finalScoreData.finalXP);
+  const totalPercentage = formatInteger(finalScoreData.finalPercent);
 
   if (!gameId || roundResults.length === 0) {
     return null;
@@ -404,27 +345,37 @@ const FinalResultsPage: React.FC = (): JSX.Element | null => {
           <div className="grid gap-6 mb-8">
             {images.map((imageFromContext: any, index: number) => {
               const resultFromContext: any = roundResults[index];
-              const score = memoizedRoundScores[index];
+              const score = validRoundScores[index];
               
               // Ensure resultFromContext and score are defined before rendering card
               if (!resultFromContext || !score) return null;
 
-              // Transform data from memoizedRoundScores (which holds original context structures) 
-              // to match RoundDetailCard's expected props (IndexGameImage, IndexRoundResult)
-              const imageForCard: IndexGameImage = {
-                id: score.originalImageId, // Use data stored in memoizedScore
-                url: score.originalImageUrl || '', 
+              // Transform data from validRoundScores (which holds original context structures) 
+              // to match RoundDetailCard's expected props (GameImage from game.ts)
+              const imageForCard: GameImage = {
+                id: score.originalImageId, // Use data stored in score
+                image_url: score.originalImageUrl || '', 
                 year: score.originalYear,
                 latitude: score.originalLatitude,
                 longitude: score.originalLongitude,
+                title: imageFromContext.title || `Image ${index + 1}`,
+                location_name: imageFromContext.location_name || 'Unknown Location',
+                description: imageFromContext.description || ''
               };
 
-              const resultForCard: IndexRoundResult = {
-                guessLocation: score.originalGuessCoordinates ? 
-                  { lat: score.originalGuessCoordinates.lat, lng: score.originalGuessCoordinates.lng } : 
-                  { lat: 0, lng: 0 }, // Default if no guess
+              const resultForCard: RoundResult = {
+                roundIndex: index,
+                imageId: score.originalImageId,
+                guessCoordinates: score.originalGuessCoordinates,
+                actualCoordinates: { lat: score.originalLatitude, lng: score.originalLongitude },
+                distanceKm: score.distanceKm,
+                score: score.roundXP,
                 guessYear: score.originalGuessYear,
+                xpWhere: score.locationAccuracy?.score || 0,
+                xpWhen: score.timeAccuracy?.score || 0,
+                accuracy: score.roundPercent,
                 hintsUsed: score.originalHintsUsed,
+                timeTakenSeconds: 0 // Default value as we don't have this information
               };
 
               return (

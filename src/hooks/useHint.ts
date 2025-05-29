@@ -114,7 +114,7 @@ export const useHint = (imageData: GameImage | null = null) => {
     };
     
     generateHintData();
-  }, [imageData]);
+  }, [imageData?.id, imageData?.location_name, imageData?.latitude, imageData?.longitude, imageData?.year]);
   
   // Helper function to generate region hint from image data
   const generateRegionHint = (image: GameImage): string => {

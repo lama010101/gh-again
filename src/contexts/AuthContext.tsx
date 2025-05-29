@@ -4,141 +4,89 @@ import { User, Session } from '@supabase/supabase-js';
 import { v4 as uuidv4 } from 'uuid';
 import { supabase } from '@/integrations/supabase/client';
 
-// Define types for our users
-export type AuthUser = User & {
-  type?: 'auth';
-  isGuest?: false;
-};
-
-export type GuestUser = {
-  id: string;
-  type: 'guest';
-  isGuest: true;
-  display_name: string;
+// Extend the base User type to include our custom properties
+interface CustomUser extends User {
+  isGuest?: boolean;
+  display_name?: string;
   avatar_url?: string;
-};
+}
+
+// The isGuest status is derived from user.user_metadata.is_guest
+// and other properties are added for convenience.
 
 // Define the shape of our Auth Context
 export interface AuthState {
-  user: AuthUser | GuestUser | null;
+  user: CustomUser | null;
   session: Session | null;
   isLoading: boolean;
   isGuest: boolean;
   isGoogleUser: boolean;
-  signInWithEmail: (email: string, password: string) => Promise<void>;
-  signUpWithEmail: (email: string, password: string) => Promise<void>;
+  signInWithEmail: (email: string, password: string) => Promise<CustomUser | null>;
+  signUpWithEmail: (email: string, password: string) => Promise<CustomUser | null>;
   signInWithGoogle: () => Promise<void>;
   signOut: () => Promise<void>;
-  continueAsGuest: () => Promise<GuestUser>;
+  continueAsGuest: () => Promise<CustomUser | null>;
 }
 
 const AuthContext = createContext<AuthState | undefined>(undefined);
 
 export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
-  const [user, setUser] = useState<AuthUser | GuestUser | null>(null);
+  const [user, setUser] = useState<CustomUser | null>(null);
   const [session, setSession] = useState<Session | null>(null);
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [isGuest, setIsGuest] = useState<boolean>(false);
   const [isGoogleUser, setIsGoogleUser] = useState<boolean>(false);
 
-  // Check for existing session on mount
   useEffect(() => {
     console.log("AuthProvider: Initializing auth state");
-    
-    // First set up auth state listener to ensure we don't miss any auth events
+    setIsLoading(true);
+
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      (event, currentSession) => {
-        console.log("Auth state changed:", event, currentSession ? "Session exists" : "No session");
-        
+      (_event, currentSession) => {
+        console.log("Auth state changed. Session:", currentSession ? currentSession.user.id : "No session");
         if (currentSession) {
-          // Process auth user data
-          const authUser = currentSession.user as AuthUser;
-          authUser.type = 'auth';
-          authUser.isGuest = false;
-          setUser(authUser);
-          setSession(currentSession);
-          setIsGuest(false);
+          const currentUser = currentSession.user as CustomUser;
+          currentUser.isGuest = currentUser.user_metadata?.is_guest === true;
+          currentUser.display_name = currentUser.user_metadata?.display_name;
+          currentUser.avatar_url = currentUser.user_metadata?.avatar_url;
           
-          // Check if user is authenticated via Google
-          const isGoogle = currentSession.user.app_metadata?.provider === 'google';
-          setIsGoogleUser(isGoogle);
-          console.log("User authenticated via Google:", isGoogle);
+          setUser(currentUser);
+          setSession(currentSession);
+          setIsGuest(currentUser.isGuest);
+          setIsGoogleUser(currentUser.app_metadata?.provider === 'google');
+          console.log("User set. isGuest:", currentUser.isGuest, "isGoogle:", currentUser.app_metadata?.provider === 'google');
         } else {
-          // Check for guest session when auth session is null
-          const guestSession = localStorage.getItem('guestSession');
-          if (guestSession) {
-            try {
-              const guestUser = JSON.parse(guestSession) as GuestUser;
-              console.log("Using guest session:", guestUser.id);
-              setUser(guestUser);
-              setSession(null);
-              setIsGuest(true);
-              setIsGoogleUser(false);
-            } catch (error) {
-              console.error("Failed to parse guest session", error);
-              localStorage.removeItem('guestSession');
-              setUser(null);
-              setSession(null);
-              setIsGuest(false);
-              setIsGoogleUser(false);
-            }
-          } else {
-            setUser(null);
-            setSession(null);
-            setIsGuest(false);
-            setIsGoogleUser(false);
-          }
+          setUser(null);
+          setSession(null);
+          setIsGuest(false);
+          setIsGoogleUser(false);
+          console.log("User cleared");
         }
+        setIsLoading(false); // Moved here to cover initial load and changes
       }
     );
 
-    // Then check for existing session
-    const checkSession = async () => {
-      setIsLoading(true);
-
-      try {
-        // First check for guest session in localStorage
-        const guestSession = localStorage.getItem('guestSession');
-        if (guestSession) {
-          try {
-            const guestUser = JSON.parse(guestSession) as GuestUser;
-            console.log("Found guest session:", guestUser);
-            setUser(guestUser);
-            setSession(null);
-            setIsGuest(true);
-            setIsGoogleUser(false);
-          } catch (error) {
-            console.error("Failed to parse guest session", error);
-            localStorage.removeItem('guestSession');
-          }
+    // Check initial session state more aligned with onAuthStateChange logic
+    // onAuthStateChange will fire with the initial state, but explicit check ensures isLoading is handled.
+    supabase.auth.getSession().then(({ data: { session: initialSession } }) => {
+      if (!user && !session) { // Only set if not already set by an early onAuthStateChange
+        if (initialSession) {
+          const currentUser = initialSession.user;
+          setUser(currentUser);
+          setSession(initialSession);
+          setIsGuest(currentUser.user_metadata?.is_guest === true);
+          setIsGoogleUser(currentUser.app_metadata?.provider === 'google');
+          console.log("Initial session checked. User set. isGuest:", currentUser.user_metadata?.is_guest === true, "isGoogle:", currentUser.app_metadata?.provider === 'google');
+        } else {
+          console.log("Initial session checked. No user.");
         }
-
-        // Then check for Supabase auth session
-        const { data: { session } } = await supabase.auth.getSession();
-        if (session) {
-          console.log("Found authenticated session:", session);
-          const authUser = session.user as AuthUser;
-          authUser.type = 'auth';
-          authUser.isGuest = false;
-          setUser(authUser);
-          setSession(session);
-          setIsGuest(false);
-          
-          // Check if user is authenticated via Google
-          const isGoogle = session.user.app_metadata?.provider === 'google';
-          setIsGoogleUser(isGoogle);
-          console.log("User authenticated via Google:", isGoogle);
-        }
-      } catch (error) {
-        console.error("Failed to get auth session", error);
-      } finally {
-        setIsLoading(false);
       }
-    };
+      setIsLoading(false); // Ensure loading is false after initial check
+    }).catch(error => {
+      console.error("Error checking initial session:", error);
+      setIsLoading(false);
+    });
 
-    checkSession();
-    
-    // Cleanup subscription on unmount
     return () => {
       subscription.unsubscribe();
     };
@@ -147,10 +95,29 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   const signInWithEmail = async (email: string, password: string) => {
     setIsLoading(true);
     try {
-      const { data, error } = await supabase.auth.signInWithPassword({ email, password });
+      const { data, error } = await supabase.auth.signInWithPassword({
+        email,
+        password,
+      });
+
       if (error) throw error;
-      setUser(data.user as AuthUser);
-      setIsGuest(false);
+      
+      if (data.user) {
+        const user = data.user as CustomUser;
+        user.isGuest = user.user_metadata?.is_guest === true;
+        user.display_name = user.user_metadata?.display_name;
+        user.avatar_url = user.user_metadata?.avatar_url;
+        
+        setUser(user);
+        setSession(data.session);
+        setIsGuest(user.isGuest || false);
+        setIsGoogleUser(user.app_metadata?.provider === 'google');
+      }
+      
+      return data.user as CustomUser | null;
+    } catch (error) {
+      console.error("Error signing in:", error);
+      throw error;
     } finally {
       setIsLoading(false);
     }
@@ -159,59 +126,105 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   const signUpWithEmail = async (email: string, password: string) => {
     setIsLoading(true);
     try {
-      const { error } = await supabase.auth.signUp({ email, password });
+      const { data, error } = await supabase.auth.signUp({
+        email,
+        password,
+        options: {
+          data: {
+            is_guest: false,
+            display_name: email.split('@')[0],
+            avatar_url: `https://api.dicebear.com/6.x/adventurer/svg?seed=${email}`
+          }
+        }
+      });
+
       if (error) throw error;
-      // User will need to confirm email before being logged in
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  const continueAsGuest = async (): Promise<GuestUser> => {
-    try {
-      console.log("Starting guest login process");
-      setIsLoading(true);
-
-      // Generate a simple display name - would normally come from a pool of names or DB
-      const randomName = `Guest${Math.floor(Math.random() * 10000)}`;
-      const displayName = randomName;
-
-      // Create guest user object
-      const guestUser: GuestUser = {
-        id: `guest_${uuidv4()}`,
-        type: 'guest',
-        isGuest: true,
-        display_name: displayName,
-        avatar_url: `https://api.dicebear.com/6.x/adventurer/svg?seed=${randomName}`
-      };
-
-      // Save to localStorage
-      localStorage.setItem('guestSession', JSON.stringify(guestUser));
-      console.log("Guest session saved to localStorage");
-
-      // Update state
-      setUser(guestUser);
-      setIsGuest(true);
-
-      // Add a small delay to ensure state updates are processed
-      await new Promise(resolve => setTimeout(resolve, 100));
       
-      return guestUser;
+      if (data.user) {
+        const user = data.user as CustomUser;
+        user.isGuest = false;
+        user.display_name = email.split('@')[0];
+        user.avatar_url = `https://api.dicebear.com/6.x/adventurer/svg?seed=${email}`;
+        
+        setUser(user);
+        setSession(data.session);
+        setIsGuest(false);
+        setIsGoogleUser(false);
+      }
+      
+      return data.user as CustomUser | null;
     } catch (error) {
-      console.error("Error creating guest user", error);
+      console.error("Error signing up:", error);
       throw error;
     } finally {
       setIsLoading(false);
     }
   };
 
-  const signInWithGoogle = async () => {
+  const continueAsGuest = async (): Promise<CustomUser | null> => {
+    setIsLoading(true);
+    try {
+      console.log("Continuing as guest...");
+      
+      // Generate a random guest email
+      const guestId = `guest_${uuidv4().substring(0, 8)}`;
+      const guestEmail = `${guestId}@guest.example`;
+      const guestPassword = uuidv4();
+      
+      // Sign up the guest user
+      const { data, error } = await supabase.auth.signUp({
+        email: guestEmail,
+        password: guestPassword,
+        options: {
+          data: {
+            is_guest: true,
+            display_name: `Guest_${guestId.substring(0, 4)}`,
+            avatar_url: `https://api.dicebear.com/6.x/avataaars/svg?seed=${guestId}`
+          }
+        }
+      });
+      
+      if (error) throw error;
+      
+      console.log("Guest user created:", data);
+      
+      // The user is automatically signed in after sign up
+      if (!data.user) {
+        console.error('No user data returned after sign up');
+        return null;
+      }
+      
+      const user = data.user as CustomUser;
+      user.isGuest = true;
+      user.display_name = data.user.user_metadata?.display_name;
+      user.avatar_url = data.user.user_metadata?.avatar_url;
+      
+      setUser(user);
+      setSession(data.session);
+      setIsGuest(true);
+      setIsGoogleUser(false);
+      
+      return user;
+    } catch (error) {
+      console.error("Error continuing as guest:", error);
+      throw error;
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const signInWithGoogle = async (): Promise<void> => {
+    setIsLoading(true);
     try {
       console.log("Initiating Google sign in");
       const { error } = await supabase.auth.signInWithOAuth({
         provider: 'google',
         options: {
           redirectTo: window.location.origin,
+          queryParams: {
+            access_type: 'offline',
+            prompt: 'consent',
+          },
         },
       });
       
@@ -221,24 +234,30 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
       // No need to update state here as we're redirecting to OAuth provider
       // State will update on return via Supabase's auth state listener
     } catch (error) {
-      console.error("Google sign in error:", error);
+      console.error("Error signing in with Google:", error);
       throw error;
+    } finally {
+      setIsLoading(false);
     }
   };
 
-  const signOut = async () => {
+  // Sign out function
+  const signOut = async (): Promise<void> => {
     setIsLoading(true);
     try {
-      if (isGuest) {
-        // Clear guest session from localStorage
-        localStorage.removeItem('guestSession');
-      } else {
-        // Sign out from Supabase auth
-        const { error } = await supabase.auth.signOut();
-        if (error) throw error;
-      }
+      const { error } = await supabase.auth.signOut();
+      if (error) throw error;
+      
+      // Clear user state
       setUser(null);
+      setSession(null);
       setIsGuest(false);
+      setIsGoogleUser(false);
+      
+      console.log("Successfully signed out");
+    } catch (error) {
+      console.error("Error signing out:", error);
+      throw error;
     } finally {
       setIsLoading(false);
     }

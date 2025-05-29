@@ -12,6 +12,7 @@ import { useToast } from "@/hooks/use-toast";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { supabase } from "@/integrations/supabase/client";
 
 interface AuthModalProps {
   isOpen: boolean;
@@ -34,28 +35,16 @@ export function AuthModal({
   const [activeTab, setActiveTab] = useState<"signIn" | "signUp">("signIn");
 
   const handleGuestLogin = async () => {
+    setIsLoading(true);
     try {
       console.log("Starting guest login from modal");
-      setIsLoading(true);
-      
-      // If there's a custom guest continue handler, use it
+      await continueAsGuest();
+      onClose(); // Immediately close the modal
       if (onGuestContinue) {
         await onGuestContinue();
-        onClose();
-        return;
-      }
-      
-      // Fallback to default behavior if no onGuestContinue provided
-      const guestUser = await continueAsGuest();
-      console.log("Guest login successful:", guestUser);
-      
-      // Close the modal first
-      onClose();
-      
-      // Then navigate to home after a small delay to ensure the modal is closed
-      setTimeout(() => {
+      } else {
         window.location.href = '/';
-      }, 100);
+      }
     } catch (error) {
       console.error("Guest login error:", error);
       toast({
@@ -87,7 +76,7 @@ export function AuthModal({
         await signUpWithEmail(email, password);
         toast({
           title: "Account created",
-          description: "Please check your email to confirm your account",
+          description: "You are now logged in. Please verify your email within the next few days to keep your account active.",
         });
       }
       
@@ -103,6 +92,36 @@ export function AuthModal({
         variant: "destructive",
         title: activeTab === "signIn" ? "Sign In Failed" : "Sign Up Failed",
         description: error.message || "Authentication failed. Please try again.",
+      });
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleForgotPassword = async () => {
+    if (!email) {
+      toast({
+        variant: "destructive",
+        title: "Email required",
+        description: "Please enter your email address first",
+      });
+      return;
+    }
+    
+    try {
+      setIsLoading(true);
+      const { error } = await supabase.auth.resetPasswordForEmail(email);
+      if (error) throw error;
+      
+      toast({
+        title: "Password reset email sent",
+        description: "Check your inbox for a link to reset your password",
+      });
+    } catch (error: any) {
+      toast({
+        variant: "destructive",
+        title: "Error",
+        description: error.message || "Failed to send password reset email",
       });
     } finally {
       setIsLoading(false);
@@ -210,6 +229,15 @@ export function AuthModal({
                     onChange={(e) => setPassword(e.target.value)}
                     disabled={isLoading}
                   />
+                  <div className="text-right">
+                    <button 
+                      type="button"
+                      onClick={handleForgotPassword}
+                      className="text-sm text-blue-500 hover:text-blue-700"
+                    >
+                      Forgot password?
+                    </button>
+                  </div>
                 </div>
                 <Button
                   type="submit"

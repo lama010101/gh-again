@@ -58,36 +58,55 @@ const FriendsGameModal: React.FC<FriendsGameModalProps> = ({
   const gameUrl = `${window.location.origin}/play/${gameId}`;
 
   const handleCopyUrl = () => {
-    let copied = false;
-    // Try execCommand('copy') with a temporary textarea (most reliable for user-initiated events)
-    try {
-      const textArea = document.createElement('textarea');
-      textArea.value = gameUrl;
-      textArea.setAttribute('readonly', '');
-      textArea.style.position = 'absolute';
-      textArea.style.left = '-9999px';
-      document.body.appendChild(textArea);
-      textArea.select();
-      copied = document.execCommand('copy');
-      document.body.removeChild(textArea);
-    } catch (err) {
-      copied = false;
-    }
-
-    // As a backup, try Clipboard API if available
-    if (!copied && navigator.clipboard && window.isSecureContext) {
+    // First try the modern Clipboard API if available
+    if (navigator.clipboard && window.isSecureContext) {
       navigator.clipboard.writeText(gameUrl).then(() => {
         setIsCopied(true);
         setTimeout(() => setIsCopied(false), 2000);
-      }, () => {
-        setIsCopied(false);
+      }).catch(() => {
+        // If Clipboard API fails, fall back to execCommand
+        fallbackCopyTextToClipboard(gameUrl);
       });
-      return;
+    } else {
+      // Fall back to execCommand if Clipboard API not available
+      fallbackCopyTextToClipboard(gameUrl);
     }
+  };
 
-    setIsCopied(copied);
-    if (copied) {
-      setTimeout(() => setIsCopied(false), 2000);
+  const fallbackCopyTextToClipboard = (text: string) => {
+    try {
+      const textArea = document.createElement('textarea');
+      textArea.value = text;
+      // Make the textarea out of viewport
+      textArea.style.position = 'fixed';
+      textArea.style.opacity = '0';
+      textArea.style.pointerEvents = 'none';
+      document.body.appendChild(textArea);
+      textArea.select();
+      
+      // Try to copy
+      let success = false;
+      try {
+        success = document.execCommand('copy');
+      } catch (err) {
+        console.error('Fallback copy failed:', err);
+      }
+      
+      // Clean up
+      document.body.removeChild(textArea);
+      
+      // Update UI state
+      setIsCopied(success);
+      if (success) {
+        setTimeout(() => setIsCopied(false), 2000);
+      } else {
+        // Last resort: Show the text in a prompt for manual copy
+        prompt('Copy to clipboard: Ctrl+C, Enter', text);
+      }
+    } catch (err) {
+      console.error('Error in fallback copy:', err);
+      // Show the text in a prompt as a last resort
+      prompt('Copy to clipboard: Ctrl+C, Enter', text);
     }
   };
 
@@ -209,14 +228,28 @@ const FriendsGameModal: React.FC<FriendsGameModalProps> = ({
                 <button
                   type="button"
                   onClick={handleCopyUrl}
-                  className={`inline-flex items-center px-3 py-2 border border-l-0 text-sm font-medium rounded-r-md ${
+                  className={`inline-flex items-center px-4 py-2 border border-l-0 text-sm font-medium rounded-r-md transition-all duration-200 ${
                     isCopied 
-                      ? 'bg-green-500 text-white border-green-500' 
-                      : 'bg-gray-50 text-gray-700 border-gray-300 hover:bg-gray-100 dark:bg-gray-600 dark:text-gray-200 dark:border-gray-500 dark:hover:bg-gray-700'
+                      ? 'bg-green-500 text-white border-green-500 shadow-md scale-95' 
+                      : 'bg-gray-50 text-gray-700 border-gray-300 hover:bg-gray-100 dark:bg-gray-600 dark:text-gray-200 dark:border-gray-500 dark:hover:bg-gray-700 hover:bg-gray-100 active:scale-95'
                   }`}
                   disabled={isLoading}
                 >
-                  {isCopied ? 'Copied!' : 'Copy'}
+                  {isCopied ? (
+                    <>
+                      <svg className="w-4 h-4 mr-1.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                      </svg>
+                      Copied!
+                    </>
+                  ) : (
+                    <>
+                      <svg className="w-4 h-4 mr-1.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 5H6a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2v-1M8 5a2 2 0 002 2h2a2 2 0 002-2M8 5a2 2 0 012-2h2a2 2 0 012 2m0 0h2a2 2 0 012 2v3m2 4H10m0 0l3-3m-3 3l3 3" />
+                      </svg>
+                      Copy
+                    </>
+                  )}
                 </button>
               </div>
               <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">

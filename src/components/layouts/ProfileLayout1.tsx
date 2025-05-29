@@ -13,7 +13,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { useGame } from '@/contexts/GameContext';
 import { useNavigate } from 'react-router-dom';
 import { Badge as BadgeType, BadgeEvaluation, BadgeRequirementCode } from '@/utils/badges/types';
-import { evaluateUserBadges } from '@/utils/badges/badgeService';
+import { checkAndAwardBadges, convertToUserGameMetrics } from '@/utils/badges/badgeService';
 import { supabase } from '@/integrations/supabase/client';
 import { 
   fetchUserProfile, 
@@ -133,7 +133,16 @@ const ProfileLayout1 = () => {
           setAvatars(allAvatars);
           const userMetrics = getDefaultMetrics(userStats);
           setMetrics(userMetrics);
-          const evaluations = await evaluateUserBadges(user.id, userMetrics);
+          // Convert metrics to UserGameMetrics format
+          const userGameMetrics = convertToUserGameMetrics(userMetrics);
+          const badges = await checkAndAwardBadges(user.id, userGameMetrics);
+          // Transform Badge[] to BadgeEvaluation[]
+          const evaluations: BadgeEvaluation[] = badges.map(badge => ({
+            badge,
+            earned: true,
+            progress: 100,
+            value: 1
+          }));
           setBadgeEvaluations(evaluations);
           setBadgesLoading(false);
           setAvatarsLoading(false);
@@ -220,7 +229,16 @@ const ProfileLayout1 = () => {
           setAvatars(allAvatars);
           
           // Evaluate badges based on metrics
-          const evaluations = await evaluateUserBadges(user.id, storedMetrics);
+          // Convert storedMetrics to UserGameMetrics format
+          const userGameMetrics = convertToUserGameMetrics(storedMetrics);
+          const badges = await checkAndAwardBadges(user.id, userGameMetrics);
+          // Transform Badge[] to BadgeEvaluation[]
+          const evaluations: BadgeEvaluation[] = badges.map(badge => ({
+            badge,
+            earned: true,
+            progress: 100,
+            value: 1
+          }));
           setBadgeEvaluations(evaluations);
         } else {
           // No stored metrics found, using defaults
@@ -244,7 +262,17 @@ const ProfileLayout1 = () => {
         setAvatars(allAvatars);
         
         // Evaluate badges based on metrics
-        const evaluations = await evaluateUserBadges(user.id, getDefaultMetrics(userStats));
+        // Convert metrics to UserGameMetrics format
+        const userMetrics = getDefaultMetrics(userStats);
+        const userGameMetrics = convertToUserGameMetrics(userMetrics);
+        const badges = await checkAndAwardBadges(user.id, userGameMetrics);
+        // Transform Badge[] to BadgeEvaluation[]
+        const evaluations: BadgeEvaluation[] = badges.map(badge => ({
+          badge,
+          earned: true,
+          progress: 100,
+          value: 1
+        }));
         setBadgeEvaluations(evaluations);
       }
     } catch (error) {

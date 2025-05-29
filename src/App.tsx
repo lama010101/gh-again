@@ -154,6 +154,7 @@ const App = () => {
                           <Route path="users" element={<AdminUsersPage />} />
                         </Route>
                         <Route path="game/multi/:roomId/round/:roundNumber" element={<GameRoundPage mode="multi" />} />
+                        <Route path="game/room/:roomId/round/:roundNumber" element={<GameRoundPage />} />
                         <Route path="game/room/:roomId/round/:roundNumber/results" element={<RoundResultsPage />} />
                       </Route>
                       {/* Final Results page with its own MainNavbar */}

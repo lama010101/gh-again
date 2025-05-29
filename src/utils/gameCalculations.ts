@@ -159,6 +159,12 @@ export const calculateFinalScore = (roundScores: Array<{
   finalPercent: number;
   totalHintPenalty: number;
   totalHintPenaltyPercent: number;
+  roundScores: Array<{
+    roundXP: number;
+    roundPercent: number;
+    hintPenalty?: number;
+    hintPenaltyPercent?: number;
+  }>;
 } => {
   // Calculate total hint penalties
   const totalHintPenalty = roundScores.reduce((sum, round) => sum + (round.hintPenalty || 0), 0);
@@ -171,26 +177,12 @@ export const calculateFinalScore = (roundScores: Array<{
   const finalPercent = roundScores.length > 0 ?
     Math.round(roundScores.reduce((sum, round) => sum + round.roundPercent, 0) / roundScores.length) :
     0;
-    
-  console.log('[GameCalculations] Final Score:', {
-    roundScores: roundScores.map((r, i) => ({
-      round: i + 1,
-      roundXP: r.roundXP,
-      roundPercent: r.roundPercent,
-      hintPenalty: r.hintPenalty || 0,
-      hintPenaltyPercent: r.hintPenaltyPercent || 0
-    })),
-    finalXP,
-    finalPercent,
-    totalHintPenalty,
-    totalHintPenaltyPercent
-  });
-  
   return {
     finalXP,
     finalPercent,
     totalHintPenalty,
-    totalHintPenaltyPercent
+    totalHintPenaltyPercent,
+    roundScores // Pass through the original roundScores array
   };
 };
 

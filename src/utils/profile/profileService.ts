@@ -76,7 +76,7 @@ export async function fetchUserProfile(userId: string): Promise<UserProfile | nu
         // Return a simplified profile for guest users
         return {
           id: guestUser.id,
-          display_name: guestUser.display_name,
+          display_name: guestUser.display_name || 'Guest Player',
           avatar_url: guestUser.avatar_url || '',
           avatar_image_url: guestUser.avatar_url || 'https://api.dicebear.com/6.x/adventurer/svg?seed=' + userId,
           created_at: new Date().toISOString()
@@ -88,6 +88,26 @@ export async function fetchUserProfile(userId: string): Promise<UserProfile | nu
   }
   
   try {
+    // First, try to check if the profiles table exists by doing a count query
+    const { count, error: countError } = await supabase
+      .from('profiles')
+      .select('*', { count: 'exact', head: true });
+
+    // If there's an error with the count query, the table might not exist
+    // or there could be a permission issue
+    if (countError) {
+      console.log('Profiles table may not exist or have permission issues:', countError);
+      // Return a default profile to avoid blocking game flow
+      return {
+        id: userId,
+        display_name: 'Player',
+        avatar_url: '',
+        avatar_image_url: 'https://api.dicebear.com/6.x/adventurer/svg?seed=' + userId,
+        created_at: new Date().toISOString()
+      } as UserProfile;
+    }
+
+    // If the table exists, try to fetch the user profile
     const { data, error } = await supabase
       .from('profiles')
       .select('*')
@@ -96,13 +116,27 @@ export async function fetchUserProfile(userId: string): Promise<UserProfile | nu
 
     if (error) {
       console.error('Error fetching user profile:', error);
-      return null;
+      // Return a default profile to avoid blocking game flow
+      return {
+        id: userId,
+        display_name: 'Player',
+        avatar_url: '',
+        avatar_image_url: 'https://api.dicebear.com/6.x/adventurer/svg?seed=' + userId,
+        created_at: new Date().toISOString()
+      } as UserProfile;
     }
 
     return data as unknown as UserProfile;
   } catch (error) {
     console.error('Error in fetchUserProfile:', error);
-    return null;
+    // Return a default profile to avoid blocking game flow
+    return {
+      id: userId,
+      display_name: 'Player',
+      avatar_url: '',
+      avatar_image_url: 'https://api.dicebear.com/6.x/adventurer/svg?seed=' + userId,
+      created_at: new Date().toISOString()
+    } as UserProfile;
   }
 }
 
@@ -692,6 +726,37 @@ export const updateUserMetrics = async (
 // Fetch user settings
 export async function fetchUserSettings(userId: string): Promise<UserSettings | null> {
   try {
+    // First check if the settings table is accessible
+    try {
+      const { count, error: countError } = await supabase
+        .from('settings')
+        .select('*', { count: 'exact', head: true });
+
+      // If there's an error accessing the settings table (like 406 Not Acceptable)
+      if (countError) {
+        console.log('Settings table may not be accessible:', countError);
+        // Return default settings to prevent blocking game flow
+        return {
+          theme: 'dark',
+          sound_enabled: true,
+          notification_enabled: true,
+          distance_unit: 'km',
+          language: 'en'
+        };
+      }
+    } catch (e) {
+      console.log('Error checking settings table:', e);
+      // Return default settings to prevent blocking game flow
+      return {
+        theme: 'dark',
+        sound_enabled: true,
+        notification_enabled: true,
+        distance_unit: 'km',
+        language: 'en'
+      };
+    }
+
+    // If we can access the table, try to get the user's settings
     const { data, error } = await supabase
       .from('settings')
       .select('value')
@@ -712,7 +777,14 @@ export async function fetchUserSettings(userId: string): Promise<UserSettings | 
       }
       
       console.error('Error fetching user settings:', error);
-      return null;
+      // Return default settings instead of null to keep the game going
+      return {
+        theme: 'dark', 
+        sound_enabled: true,
+        notification_enabled: true,
+        distance_unit: 'km',
+        language: 'en'
+      };
     }
 
     // Add type assertion and handle potential JSON parsing
@@ -720,7 +792,14 @@ export async function fetchUserSettings(userId: string): Promise<UserSettings | 
     return settings as UserSettings;
   } catch (error) {
     console.error('Error in fetchUserSettings:', error);
-    return null;
+    // Return default settings instead of null to keep the game going
+    return {
+      theme: 'dark',
+      sound_enabled: true,
+      notification_enabled: true,
+      distance_unit: 'km',
+      language: 'en'
+    };
   }
 }
 

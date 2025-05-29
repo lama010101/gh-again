@@ -53,15 +53,23 @@ const HomeLayout1 = () => {
       const roundCount = 5;
 
       // Create a unique game entry
+      const isGuest = currentUser.user_metadata?.is_guest === true;
       const gameData = {
         mode,
-        user_id: currentUser.isGuest ? null : currentUser.id,
-        guest_id: currentUser.isGuest ? currentUser.id : null,
+        user_id: isGuest ? null : currentUser.id,
+        guest_id: isGuest ? currentUser.id : null,
         created_at: new Date().toISOString(),
         completed: false,
         score: 0,
         round_count: roundCount
       };
+      
+      console.log('Creating game with data:', { 
+        ...gameData, 
+        isGuest,
+        userId: currentUser.id,
+        userMetadata: currentUser.user_metadata 
+      });
       
       console.log("Game data to insert:", gameData);
 

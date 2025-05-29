@@ -2,7 +2,7 @@ import React from 'react';
 import { Badge } from "@/components/ui/badge";
 import { MapPin, Calendar, Target } from "lucide-react";
 import { formatInteger } from '@/utils/format';
-import type { GameImage, RoundResult } from '@/types';
+import type { GameImage, RoundResult } from '@/types/game';
 
 interface RoundScore {
   roundXP: number;
@@ -45,8 +45,8 @@ const RoundDetailCard: React.FC<RoundDetailCardProps> = ({
       <div className="flex flex-col md:flex-row">
         <div className="md:w-1/3">
           <img
-            src={image.url} // Use 'url' as defined in src/types/index.ts GameImage
-            alt={`Round ${index + 1} - Image ID: ${image.id}`}
+            src={image.image_url} // Use 'image_url' as defined in src/types/game.ts GameImage
+            alt={`Round ${index + 1} - ${image.title}`}
             className="w-full h-48 md:h-full object-cover"
             loading="lazy"
             aria-label={`Historical image for round ${index + 1}`}
@@ -67,14 +67,12 @@ const RoundDetailCard: React.FC<RoundDetailCardProps> = ({
               role="button"
               aria-expanded={isOpen}
               aria-controls={`round-details-${image.id}`}
-              aria-label={`Toggle details for Image ID: ${image.id}`}
+              aria-label={`Toggle details for ${image.title}`}
             >
-              <h3 className="text-xl font-bold mb-1">Image ID: {image.id}</h3>
-              {/* If a title is needed, it should be added to the GameImage type and fetched/passed down */}
+              <h3 className="text-xl font-bold mb-1">{image.title}</h3>
               <p className="text-sm text-gray-600 dark:text-gray-300 mb-2">
-                Actual Coordinates: {image.latitude.toFixed(2)}, {image.longitude.toFixed(2)}
+                {image.location_name}, {image.year}
               </p>
-              {/* If location_name is needed, it should be added to the GameImage type and fetched/passed down */}
               
               <div className="flex flex-wrap gap-2 items-center mt-2">
                 <Badge className="bg-history-primary/10 text-history-primary border-history-primary">
