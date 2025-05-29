@@ -5,10 +5,14 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "vite build",
+    "build": "tsc && vite build",
     "build:dev": "vite build --mode development",
-    "lint": "eslint .",
-    "preview": "vite preview"
+    "lint": "eslint . --ext ts,tsx --report-unused-disable-directives --max-warnings 0",
+    "preview": "vite preview",
+    "test": "jest",
+    "test:watch": "jest --watch",
+    "test:coverage": "jest --coverage",
+    "test:update": "jest --updateSnapshot"
   },
   "dependencies": {
     "@hookform/resolvers": "^3.9.0",
@@ -76,7 +80,7 @@
     "@tailwindcss/typography": "^0.5.15",
     "@types/canvas-confetti": "^1.9.0",
     "@types/leaflet": "^1.9.17",
-    "@types/node": "^22.15.21",
+    "@types/node": "^22.15.24",
     "@types/react": "^18.3.20",
     "@types/react-dom": "^18.3.6",
     "@types/uuid": "^10.0.0",

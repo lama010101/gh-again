@@ -226,23 +226,31 @@ const GameLayout1: React.FC<GameLayout1Props> = ({
   }, [image]);
 
   // Use the new hint system with proper cleanup
-  const { selectedHintType, hintContent, canSelectHint, selectHint, resetHint } = useHint(memoizedImageData);
+  const { 
+    selectedHintTypes, 
+    hintContents, 
+    isLoading, 
+    error, 
+    canSelectAnotherHint, 
+    selectHint, 
+    resetHint 
+  } = useHint(memoizedImageData);
   
   // Cleanup hint resources when component unmounts or image changes
   useEffect(() => {
     return () => {
       // Reset any hint-related states when unmounting or when image changes
       // This prevents memory leaks and ensures clean state for the next round
-      if (selectedHintType) {
+      if (selectedHintTypes.length > 0) {
         resetHint();
       }
     };
-  }, [memoizedImageData, selectedHintType, resetHint]);
+  }, [memoizedImageData, selectedHintTypes, resetHint]);
 
   const handleHintClick = useCallback(() => {
     // Early return if no hints can be selected
-    if (!canSelectHint) {
-      console.warn('Cannot select hint: no hints available or already selected');
+    if (!canSelectAnotherHint) {
+      console.warn('Cannot select hint: no hints available or limit reached');
       return;
     }
     
@@ -257,7 +265,7 @@ const GameLayout1: React.FC<GameLayout1Props> = ({
     
     // Open the hint modal
     setIsHintModalOpen(true);
-  }, [canSelectHint, image]);
+  }, [canSelectAnotherHint, image]);
 
   const handleCoordinatesSelect = useCallback((lat: number, lng: number) => {
     const newGuess = { lat, lng };
@@ -356,7 +364,7 @@ const GameLayout1: React.FC<GameLayout1Props> = ({
         />
         <div className={`hud-element ${isFullScreen ? 'hidden' : ''}`}>
           <GameOverlayHUD 
-            selectedHintType={selectedHintType}
+            selectedHintType={selectedHintTypes.length > 0 ? selectedHintTypes[0] : null}
             remainingTime={formatTime(remainingTime)}
             rawRemainingTime={remainingTime}
             onHintClick={handleHintClick}
@@ -429,11 +437,13 @@ const GameLayout1: React.FC<GameLayout1Props> = ({
         isOpen={isHintModalOpen}
         onOpenChange={setIsHintModalOpen}
         onSelectHint={selectHint}
-        selectedHintType={selectedHintType}
-        hintContent={hintContent || ''}
+        selectedHintTypes={selectedHintTypes}
+        hintContents={hintContents}
+        isLoading={isLoading}
+        error={error}
         hintsUsedThisRound={hintsUsedThisRound}
         hintsUsedTotal={hintsUsedTotal}
-        HINTS_PER_ROUND={HINTS_PER_GAME}
+        HINTS_PER_ROUND={2} // Hardcoded to 2 hints per round as per requirements
         HINTS_PER_GAME={HINTS_PER_GAME}
         image={{ url: image.image_url, title: image.title }}
       />

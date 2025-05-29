@@ -19,7 +19,7 @@ export interface GameLayout2Props {
 
 const GameLayout2: React.FC<GameLayout2Props> = ({ onComplete, gameMode = 'solo' }) => {
   const [isHintModalOpen, setIsHintModalOpen] = useState(false);
-  const { selectedHintType, hintContent, selectHint } = useHint();
+  const { selectedHintTypes, hintContents, isLoading, error, canSelectAnotherHint, selectHint } = useHint();
 
   const handleHintClick = () => {
     setIsHintModalOpen(true);
@@ -37,12 +37,12 @@ const GameLayout2: React.FC<GameLayout2Props> = ({ onComplete, gameMode = 'solo'
         <div className="absolute bottom-4 right-4 flex space-x-2">
           <Button 
             size="sm" 
-            className={`bg-black/50 hover:bg-black/70 text-white border-none ${selectedHintType ? 'bg-history-secondary/50' : ''}`}
+            className={`bg-black/50 hover:bg-black/70 text-white border-none ${selectedHintTypes.length > 0 ? 'bg-history-secondary/50' : ''}`}
             onClick={handleHintClick}
           >
             <HelpCircle className="h-4 w-4 mr-1" /> 
             Hint
-            {selectedHintType && <span className="ml-1 text-xs">({selectedHintType})</span>}
+            {selectedHintTypes.length > 0 && <span className="ml-1 text-xs">({selectedHintTypes.length})</span>}
           </Button>
           <Button size="sm" className="bg-black/50 hover:bg-black/70 text-white border-none">
             <Clock className="h-4 w-4 mr-1" /> 4:32
@@ -123,9 +123,16 @@ const GameLayout2: React.FC<GameLayout2Props> = ({ onComplete, gameMode = 'solo'
       <HintModal
         isOpen={isHintModalOpen}
         onOpenChange={setIsHintModalOpen}
-        selectedHintType={selectedHintType}
-        hintContent={hintContent}
+        selectedHintTypes={selectedHintTypes}
+        hintContents={hintContents}
+        isLoading={isLoading}
+        error={error}
         onSelectHint={selectHint}
+        hintsUsedThisRound={selectedHintTypes.length}
+        hintsUsedTotal={selectedHintTypes.length}
+        HINTS_PER_ROUND={2}
+        HINTS_PER_GAME={10}
+        image={{ url: "https://source.unsplash.com/random/1600x900/?historical,vintage", title: "Historical scene" }}
       />
     </div>
   );
