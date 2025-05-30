@@ -2,7 +2,8 @@ import React, { useState, useEffect, useCallback } from "react";
 import { useLogs } from "@/contexts/LogContext";
 import { Button } from "@/components/ui/button";
 import { useNavigate } from "react-router-dom";
-import { Share2, Home } from "lucide-react"; // Target, Zap, Loader icons are now in their respective components or not used directly here
+import { Badge } from "@/components/ui/badge";
+import { Zap, Target, Share2, Home } from "lucide-react"; 
 import { useGame } from "@/contexts/GameContext";
 import { useAuth } from "@/contexts/AuthContext";
 import Logo from "@/components/Logo";
@@ -11,6 +12,7 @@ import { NavProfile } from "@/components/NavProfile";
 // Game calculation utilities (calculateFinalScore, calculateTimeAccuracy) are now primarily within hooks.
 import type { GameImage, RoundResult } from '@/types/game';
 import RoundDetailCard from '@/components/RoundDetailCard';
+import RoundList from '@/components/RoundList';
 import { useRoundScores } from "@/hooks/useRoundScores";
 import { useFinalScoreData } from "@/hooks/useFinalScoreData";
 import { useMetricsRefresh } from "@/hooks/useMetricsRefresh";
@@ -66,26 +68,55 @@ const FinalResultsPage: React.FC = (): JSX.Element | null => {
 
   // Effect to update user metrics in DB and refresh global metrics in context
   useEffect(() => {
-    if (finalScoreData && finalScoreData.finalXP > 0 && user && gameId && !metricsHaveBeenUpdated) {
+    if (finalScoreData && user && gameId && !metricsHaveBeenUpdated && detailedRoundScores.length > 0 && roundResults.length > 0) {
       addLog(`[FinalResultsPage] Attempting to update metrics for user: ${user.id}, game: ${gameId}`);
-      const gameMetrics = {
-        xp_earned: finalScoreData.finalXP,
-        accuracy: finalScoreData.finalPercent,
-        rounds_played: roundResults.length,
-        hints_used_total: roundResults.reduce((acc, r) => acc + r.hintsUsed, 0),
+
+      const totalHintsUsed = roundResults.reduce((acc, r) => acc + r.hintsUsed, 0);
+      const isPerfectGame = finalScoreData.finalPercent === 100 && totalHintsUsed === 0;
+
+      const validLocationScores = detailedRoundScores.map(rs => rs.locationAccuracy?.score).filter(s => typeof s === 'number') as number[];
+      const averageLocationAccuracy = validLocationScores.length > 0 ? validLocationScores.reduce((a, b) => a + b, 0) / validLocationScores.length : 0;
+
+      const validTimeScores = detailedRoundScores.map(rs => rs.timeAccuracy?.score).filter(s => typeof s === 'number') as number[];
+      const averageTimeAccuracy = validTimeScores.length > 0 ? validTimeScores.reduce((a, b) => a + b, 0) / validTimeScores.length : 0;
+
+      const yearBullseye = detailedRoundScores.some(rs => 
+        rs.timeAccuracy && 
+        typeof (rs.timeAccuracy as any).yearDiff === 'number' && 
+        (rs.timeAccuracy as any).yearDiff === 0
+      );
+      const locationBullseye = detailedRoundScores.some(rs => 
+        rs.locationAccuracy && 
+        typeof (rs.locationAccuracy as any).distanceKm === 'number' && 
+        (rs.locationAccuracy as any).distanceKm === 0
+      );
+
+      const gameMetricsUpdate = {
+        gameXP: finalScoreData.finalXP,
+        gameAccuracy: finalScoreData.finalPercent,
+        isPerfectGame: isPerfectGame,
+        locationAccuracy: averageLocationAccuracy,
+        timeAccuracy: averageTimeAccuracy,
+        yearBullseye: yearBullseye,
+        locationBullseye: locationBullseye,
+        // Supabase function also expects rounds_played and hints_used_total for its own calculations if needed by triggers/functions there
+        // but the primary gameMetrics type for profileService.ts doesn't list them. Let's assume profileService handles this if necessary or they are not needed by it directly.
       };
 
-      updateUserMetrics(user.id, gameId, gameMetrics)
-        .then(() => {
-          addLog(`[FinalResultsPage] Successfully updated metrics for user: ${user.id}, game: ${gameId}`);
-          refreshGlobalMetrics();
-          addLog(`[FinalResultsPage] Global metrics refreshed.`);
-          setMetricsHaveBeenUpdated(true); // Mark as updated to prevent re-running
-        })
-        .catch(updateError => {
-          addLog(`[FinalResultsPage] Error updating metrics: ${updateError.message}`);
-          console.error('Error updating user metrics:', updateError);
-        });
+      // Ensure finalXP > 0 condition is still checked if it's a specific business rule for updating metrics
+      if (finalScoreData.finalXP > 0) {
+        updateUserMetrics(user.id, gameMetricsUpdate, gameId)
+          .then(() => {
+            addLog(`[FinalResultsPage] Successfully updated metrics for user: ${user.id}, game: ${gameId}`);
+            refreshGlobalMetrics();
+            addLog(`[FinalResultsPage] Global metrics refreshed.`);
+            setMetricsHaveBeenUpdated(true); // Mark as updated to prevent re-running
+          })
+          .catch(updateError => {
+            addLog(`[FinalResultsPage] Error updating metrics: ${updateError.message}`);
+            console.error('Error updating user metrics:', updateError);
+          });
+      }
     }
   }, [finalScoreData, user, gameId, refreshGlobalMetrics, addLog, roundResults, metricsHaveBeenUpdated]);
 
@@ -158,18 +189,6 @@ const FinalResultsPage: React.FC = (): JSX.Element | null => {
 
   return (
     <div className="min-h-screen bg-history-light dark:bg-history-dark flex flex-col">
-      <nav className="sticky top-0 z-50 bg-history-primary text-white shadow-md">
-        <div className="max-w-7xl mx-auto px-4">
-          <div className="flex items-center justify-between h-16">
-            <div className="flex items-center">
-              <Logo />
-            </div>
-            <div className="flex items-center gap-2">
-              <NavProfile />
-            </div>
-          </div>
-        </div>
-      </nav>
       
       <div className="flex-grow p-4 sm:p-6 md:p-8 pb-36">
         <div className="max-w-4xl mx-auto w-full">
@@ -178,53 +197,14 @@ const FinalResultsPage: React.FC = (): JSX.Element | null => {
             totalPercentage={finalScoreData.finalPercent} 
           />
 
-          <div className="grid gap-6 mb-8">
-            {detailedRoundScores.map((score: DetailedRoundScore, index: number) => {
-              const imageFromContext = images[index]; 
-              if (!imageFromContext) {
-                addLog(`[FinalResultsPage] Missing image data for round score at index ${index}`);
-                return null; 
-              }
-
-              const imageForCard: GameImage = {
-                id: score.originalImageId,
-                image_url: score.originalImageUrl,
-                year: score.originalYear,
-                latitude: score.originalLatitude,
-                longitude: score.originalLongitude,
-                title: imageFromContext.title || `Image ${index + 1}`, 
-                location_name: imageFromContext.location_name || 'Unknown Location', 
-                description: imageFromContext.description || '' 
-              };
-
-              const resultForCard: RoundResult = {
-                roundIndex: index,
-                imageId: score.originalImageId,
-                guessCoordinates: score.originalGuessCoordinates,
-                actualCoordinates: { lat: score.originalLatitude, lng: score.originalLongitude },
-                distanceKm: score.distanceKm,
-                score: score.roundXP, 
-                guessYear: score.originalGuessYear,
-                xpWhere: score.locationAccuracy?.score || 0,
-                xpWhen: score.timeAccuracy?.score || 0,
-                accuracy: score.roundPercent,
-                hintsUsed: score.originalHintsUsed,
-                timeTakenSeconds: roundResults[index]?.timeTakenSeconds || 0 
-              };
-
-              return (
-                <RoundDetailCard 
-                  key={imageForCard.id}
-                  image={imageForCard}
-                  result={resultForCard}
-                  score={score} 
-                  isOpen={open[imageForCard.id] || false}
-                  onToggleDetails={toggleDetails}
-                  index={index}
-                />
-              );
-            })}
-          </div>
+          <RoundList 
+            detailedRoundScores={detailedRoundScores}
+            images={images}
+            open={open}
+            onToggleDetails={toggleDetails}
+            addLog={addLog}
+            roundResults={roundResults} // Pass roundResults here
+          />
         </div>
 
         <div className="max-w-md mx-auto w-full flex flex-row gap-4 px-4 py-6 mt-8 mb-24">
@@ -233,20 +213,22 @@ const FinalResultsPage: React.FC = (): JSX.Element | null => {
               alert("Share functionality coming soon!");
             }}
             variant="outline"
-            className="flex-1 border-history-primary text-history-primary hover:bg-history-primary/10 gap-2 py-6 text-base"
+            className="flex-1 border-history-primary text-history-primary hover:bg-history-primary/10 gap-2 py-6 text-base" 
+            aria-label="Share your game results (feature coming soon)"
             size="lg"
           >
-            <Share2 size={20} />
-            Share
+            <Share2 size={20} aria-hidden="true" />
+            Share Results
           </Button>
           <Button
             onClick={handleHome}
             variant="outline"
-            className="flex-1 gap-2 py-6 text-base"
+            className="flex-1 gap-2 py-6 text-base" 
+            aria-label="Return to the home page"
             size="lg"
           >
-            <Home size={20} />
-            Home
+            <Home size={20} aria-hidden="true" />
+            Go to Home
           </Button>
         </div>
       </div>
@@ -254,7 +236,8 @@ const FinalResultsPage: React.FC = (): JSX.Element | null => {
       <div className="fixed bottom-0 left-0 w-full z-50 bg-white/90 dark:bg-gray-900/95 backdrop-blur shadow-[0_-2px_12px_rgba(0,0,0,0.05)] px-4 py-3 flex justify-center items-center border-t border-gray-200 dark:border-gray-700">
         <Button
           onClick={handlePlayAgain}
-          className="w-full max-w-xs bg-history-primary hover:bg-history-primary/90 text-white gap-2 py-6 text-base"
+          className="w-full max-w-xs bg-history-primary hover:bg-history-primary/90 text-white gap-2 py-6 text-base" 
+          aria-label="Start a new game"
           size="lg"
         >
           Play Again

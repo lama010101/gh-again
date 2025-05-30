@@ -681,7 +681,7 @@ export const updateUserMetrics = async (
       
       try {
         // Upsert the metrics to Supabase
-        console.log(`[ProfileService] [GameID: ${gameId || 'N/A'}] Upserting metrics for user ${userId}:`, metrics);
+        console.log(`[ProfileService] [GameID: ${gameId || 'N/A'}] Upserting metrics for user ${userId}:`, JSON.stringify(metrics, null, 2));
         
         const { error: upsertError } = await supabase
           .from('user_metrics')

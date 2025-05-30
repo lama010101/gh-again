@@ -3,6 +3,8 @@ import { supabase } from '@/integrations/supabase/client';
 import { useNavigate } from 'react-router-dom';
 import { useSettingsStore } from '@/lib/useSettingsStore';
 import { v4 as uuidv4 } from 'uuid'; // For generating unique game IDs
+import { useSupabaseClient } from '@supabase/auth-helpers-react';
+import type { Database } from '@/types/supabase'; // Assuming this path, adjust if necessary
 import { 
   GameSettings, 
   GuessCoordinates, 
@@ -179,6 +181,18 @@ export class PersistenceError extends GameError {
   }
 }
 
+// Helper function to map Supabase image data to GameImage type
+const mapSupabaseImageToGameImage = (dbImage: any): GameImage => ({
+    id: dbImage.id,
+    title: dbImage.title || '',
+    description: dbImage.description || '',
+    latitude: dbImage.latitude,
+    longitude: dbImage.longitude,
+    year: dbImage.year,
+    image_url: dbImage.image_url,
+    location_name: dbImage.location_name || '',
+});
+
 // Define the context state shape
 interface GameState {
   gameId: string | null;
@@ -244,50 +258,111 @@ export const useGame = () => {
   return { ...state, ...actions };
 };
 
-// --- PROVIDER ---
 export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  // State variables
   const [gameId, setGameId] = useState<string | null>(null);
   const [roomId, setRoomId] = useState<string | null>(null);
   const [images, setImages] = useState<GameImage[]>([]);
   const [roundResults, setRoundResults] = useState<RoundResult[]>([]);
   const [isLoading, setIsLoading] = useState<boolean>(false);
   const [error, setError] = useState<GameErrorType | null>(null);
-  const [hintsAllowed, setHintsAllowed] = useState<number>(3); // Default 3 hints per game
-  // Get timer setting from settings store (defaults to 60 seconds)
-  const { timerSeconds, setTimerSeconds } = useSettingsStore();
-  const [roundTimerSec, setRoundTimerSec] = useState<number>(timerSeconds || 60);
+  const [hintsAllowed, setHintsAllowed] = useState<number>(3); // Default from GameSettings or a constant
+  const { timerSeconds: settingsTimerSeconds, setTimerSeconds, hintsPerGame: globalHintsPerGame } = useSettingsStore();
+  const [roundTimerSec, setRoundTimerSec] = useState<number>(settingsTimerSeconds || 60); // Default from GameSettings or a constant
   const [totalGameAccuracy, setTotalGameAccuracy] = useState<number>(0);
   const [totalGameXP, setTotalGameXP] = useState<number>(0);
 
   const navigate = useNavigate();
+  const supabase = useSupabaseClient<Database>(); // Typed Supabase client
 
-  // Keep roundTimerSec in sync with timerSeconds from settings store
-  useEffect(() => {
-    setRoundTimerSec(timerSeconds);
-  }, [timerSeconds]);
-
-  // Accept settings from startGame
-  const applyGameSettings = (settings?: { timerSeconds?: number; hintsPerGame?: number }) => {
-    if (settings) {
-      if (typeof settings.timerSeconds === 'number') setRoundTimerSec(settings.timerSeconds);
-      if (typeof settings.hintsPerGame === 'number') setHintsAllowed(settings.hintsPerGame);
+  // --- Helper Functions ---
+  const handleError = useCallback((error: unknown, defaultMessage: string): GameErrorType => {
+    console.error(`[GameContext] Error: ${defaultMessage}`, error);
+    // Assuming GameError, NetworkError, PersistenceError are custom classes available in the scope
+    // If they are simple objects or not custom classes, this check might need adjustment.
+    if (error && typeof error === 'object' && 'name' in error && 'message' in error && 
+        (error.name === 'GameError' || error.name === 'NetworkError' || error.name === 'PersistenceError')) {
+      return { code: error.name as GameErrorType['code'], message: String(error.message) };
     }
-  };
+    if (error instanceof Error) {
+      return { code: 'UNKNOWN_ERROR', message: error.message };
+    }
+    return { code: 'UNKNOWN_ERROR', message: defaultMessage };
+  }, []);
 
-  // Unified setter for both context and settings store
-  const handleSetRoundTimerSec = useCallback((seconds: number) => {
-    setRoundTimerSec(seconds);
-    setTimerSeconds(seconds);
-  }, [setTimerSeconds]);
+  const mapSupabaseImageToGameImage = (dbImage: any): GameImage => ({
+    id: dbImage.id_v2 || dbImage.id, // Prefer id_v2 if exists, fallback to id
+    image_url: dbImage.image_url, // Align with GameImage type from @/types/game and validateGameImage
+    latitude: dbImage.latitude,
+    longitude: dbImage.longitude,
+    year: dbImage.year, // Changed from actualYear, assuming GameImage type expects 'year'
+    title: dbImage.title, // Added based on lint error aee8e161-498e-45e9-8d09-6abdc22c4944
+    description: dbImage.description, // Added based on lint error aee8e161-498e-45e9-8d09-6abdc22c4944
+    location_name: dbImage.location_name, // Added based on lint error aee8e161-498e-45e9-8d09-6abdc22c4944
+    // region: dbImage.region, // Assuming GameImage type does not define these
+    // country: dbImage.country, // Assuming GameImage type does not define these
+  });
 
-  // Save game state when it changes
+  const saveGameState = useCallback((gameState: PersistedGameState) => {
+    try {
+      localStorage.setItem(GAME_STORAGE_KEY, JSON.stringify(gameState));
+      console.log('[GameContext] Game state saved to local storage:', gameState);
+    } catch (e) {
+      console.error('[GameContext] Failed to save game state to local storage:', e);
+    }
+  }, []);
+
+  const clearSavedGameState = useCallback(() => {
+    try {
+      localStorage.removeItem(GAME_STORAGE_KEY);
+      console.log('[GameContext] Cleared game state from local storage.');
+    } catch (e) {
+      console.error('[GameContext] Failed to clear game state from local storage:', e);
+    }
+  }, []);
+
+  const applyGlobalDefaultSettings = useCallback(() => {
+    const defaultTimer = settingsTimerSeconds ?? 60;
+    const defaultHints = globalHintsPerGame ?? 3;
+    setRoundTimerSec(defaultTimer);
+    setHintsAllowed(defaultHints);
+    console.log(`[GameContext] Applied global default settings: Timer ${defaultTimer}s, Hints ${defaultHints}`);
+  }, [settingsTimerSeconds, globalHintsPerGame, setRoundTimerSec, setHintsAllowed]);
+
+
+  // Apply game-specific settings, potentially overriding global settings
+  const applyGameSettings = useCallback((settings?: { timerSeconds?: number; hintsPerGame?: number }) => {
+    if (settings) {
+      if (typeof settings.timerSeconds === 'number' && settings.timerSeconds >= 0) {
+        setRoundTimerSec(settings.timerSeconds);
+      }
+      if (typeof settings.hintsPerGame === 'number' && settings.hintsPerGame >= 0) {
+        setHintsAllowed(settings.hintsPerGame);
+      }
+    }
+  }, []);
+
+  // Sync roundTimerSec with settingsTimerSeconds from settings store when not in an active game
   useEffect(() => {
-    if (gameId) {
+    if (!gameId) { // Only sync if no active game is overriding settings
+        setRoundTimerSec(settingsTimerSeconds);
+    }
+  }, [settingsTimerSeconds, gameId]);
+
+  // Unified setter for the global timer preference in settings store
+  const handleSetGlobalRoundTimerSec = useCallback((seconds: number) => {
+    setTimerSeconds(seconds); // Update global setting in store
+    if (!gameId) { // If not in a game, also update local roundTimerSec for immediate UI feedback
+        setRoundTimerSec(seconds);
+    }
+  }, [setTimerSeconds, gameId]);
+
+  // Save game state when it changes (excluding sensitive or large objects if necessary)
+  useEffect(() => {
+    if (gameId && !gameId.startsWith('solo_')) { // Persist only for multiplayer games
       persistGameState({
         gameId,
         roomId,
-        images,
+        images, // Consider if images need to be persisted or re-fetched
         roundResults,
         hintsAllowed,
         roundTimerSec,
@@ -302,238 +377,252 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
     const loadGameState = () => {
       try {
         const savedState = loadPersistedState();
-        if (savedState) {
+        if (savedState && savedState.gameId && !savedState.gameId.startsWith('solo_')) {
           setGameId(savedState.gameId);
           setRoomId(savedState.roomId);
-          setImages(savedState.images);
+          setImages(savedState.images); // Consider re-fetching if images are large/dynamic
           setRoundResults(savedState.roundResults);
-          setHintsAllowed(savedState.hintsAllowed);
-          setRoundTimerSec(savedState.roundTimerSec);
+          applyGameSettings({ hintsPerGame: savedState.hintsAllowed, timerSeconds: savedState.roundTimerSec });
           setTotalGameAccuracy(savedState.totalGameAccuracy);
           setTotalGameXP(savedState.totalGameXP);
         }
-      } catch (error) {
-        setError(handleError(error, 'Failed to load previous game state'));
+      } catch (err) {
+        setError(handleError(err, 'Failed to load previous game state'));
       }
     };
-
     loadGameState();
   }, []);
 
-  // Clear saved game state when component unmounts or game is reset
-  const clearSavedGameState = useCallback(() => {
-    localStorage.removeItem('gh_current_game');
-  }, []);
-
-  // Function to fetch global metrics from Supabase or localStorage
   const fetchGlobalMetrics = useCallback(async () => {
+    console.log(`[GameContext] Fetching global metrics... Current Game ID: ${gameId || 'N/A'}`);
     try {
-      console.log('Fetching global metrics...');
-      // First check for guest session in localStorage
-      const guestSession = localStorage.getItem('guestSession');
-      if (guestSession) {
-        try {
-          const guestUser = JSON.parse(guestSession);
-          const storageKey = `guest_metrics_${guestUser.id}`;
-          const storedMetrics = localStorage.getItem(storageKey);
-          
-          if (storedMetrics) {
-            const metrics = JSON.parse(storedMetrics);
-            // Ensure we have valid numbers
-            const accuracyValue = typeof metrics.overall_accuracy === 'number' ? metrics.overall_accuracy : 0;
-            const xpValue = typeof metrics.xp_total === 'number' ? metrics.xp_total : 0;
-            
-            // Set state with verified numeric values
-            console.log(`[GameContext] [GameID: ${gameId || 'N/A'}] Updating global metrics for guest user:`, {
+      const { data: { user: authUser }, error: authError } = await supabase.auth.getUser();
 
-              newAccuracy: accuracyValue,
+      if (authError) {
+        console.error('[GameContext] Error fetching authenticated user for metrics:', authError);
+      }
+      
+      let currentUserId = authUser?.id;
 
-              newXP: xpValue,
-              source: 'guest-local-storage',
-              timestamp: new Date().toISOString()
-            });
-            
-            return;
-          } else {
-            console.log('No guest metrics found in local storage.');
+      if (!currentUserId) {
+        const guestSession = localStorage.getItem('guestSession');
+        if (guestSession) {
+          try {
+            const guestUser = JSON.parse(guestSession) as { id?: string };
+            if (guestUser.id) {
+              currentUserId = guestUser.id;
+              console.log(`[GameContext] Identified guest user for metrics: ${currentUserId}`);
+            }
+          } catch (parseError) {
+            console.error('[GameContext] Error parsing guest session for metrics:', parseError);
           }
-        } catch (parseError) {
-          console.error('Error parsing guest session or metrics from localStorage:', parseError);
-          setError({ code: 'PARSE_ERROR', message: 'Failed to parse guest session data' });
         }
       }
 
-      // If no guest session or metrics, try fetching from Supabase for authenticated user
-      const { data: { user }, error: authError } = await supabase.auth.getUser();
-      if (authError) {
-        console.error('Error fetching authenticated user:', authError);
-        setError({ code: 'AUTH_ERROR', message: 'Failed to fetch authenticated user for metrics' });
-        return;
-      }
-
-      if (user) {
-        // First try to get existing metrics
+      if (currentUserId) {
+        console.log(`[GameContext] Fetching metrics for user ID: ${currentUserId}`);
         const { data, error: fetchError } = await supabase
           .from('user_metrics')
-          .select('*')
-          .eq('user_id', user.id)
-          .maybeSingle(); // Use maybeSingle instead of single to avoid error when no rows found
+          .select('overall_accuracy, xp_total')
+          .eq('user_id', currentUserId)
+          .maybeSingle();
 
-        // If there's an error and it's NOT just "no rows found"
-        if (fetchError && fetchError.code !== 'PGRST116') {
-          console.error('Error fetching user metrics from Supabase:', fetchError);
-          // Don't set error state here as it causes the error page to appear
-          // Just log the error and continue
-          console.log('Continuing without user metrics');
-        }
-
-        if (data) {
-          // Metrics found, use them
+        if (fetchError && fetchError.code !== 'PGRST116') { 
+          console.error(`[GameContext] Error fetching user metrics for ${currentUserId}:`, fetchError);
+          setTotalGameAccuracy(0);
+          setTotalGameXP(0);
+        } else if (data) {
           setTotalGameAccuracy(data.overall_accuracy || 0);
           setTotalGameXP(data.xp_total || 0);
-          console.log(`[GameContext] [GameID: ${gameId || 'N/A'}] Loaded global metrics for registered user:`, data);
-        } else {
-          // No metrics found, create them
-          try {
-            const { data: insertedData, error: insertError } = await supabase
-              .from('user_metrics')
-              .insert({
-                user_id: user.id,
-                overall_accuracy: 0,
-                xp_total: 0,
-                games_played: 0  // Adding required field
-              })
-              .select()
-              .maybeSingle();
-
-            if (insertError) {
-              console.error('Error creating user metrics:', insertError);
-              // Don't set error state, just log and continue
-            } else if (insertedData) {
-              console.log(`[GameContext] Created new user metrics for user ${user.id}`);
-              setTotalGameAccuracy(0);
-              setTotalGameXP(0);
-            }
-          } catch (err) {
-            console.error('Exception during metrics creation:', err);
-            // Continue without metrics
+          console.log(`[GameContext] Metrics loaded for user ${currentUserId}: Acc ${data.overall_accuracy || 0}, XP ${data.xp_total || 0}`);
+        } else { 
+          console.log(`[GameContext] No metrics found for user ${currentUserId}. Creating initial entry.`);
+          const { error: insertError } = await supabase
+            .from('user_metrics')
+            .insert({ user_id: currentUserId, overall_accuracy: 0, xp_total: 0, games_played: 0 });
+          if (insertError) {
+            console.error(`[GameContext] Error creating metrics for ${currentUserId}:`, insertError);
           }
+          setTotalGameAccuracy(0);
+          setTotalGameXP(0);
         }
       } else {
-        console.log('No authenticated user found for metrics.');
+        console.log('[GameContext] No user ID (authenticated or guest) found. Unable to fetch/create metrics.');
+        setTotalGameAccuracy(0);
+        setTotalGameXP(0);
       }
     } catch (err) {
       console.error('Unexpected error in fetchGlobalMetrics:', err);
-      setError({ code: 'METRICS_ERROR', message: 'An unexpected error occurred while fetching global metrics' });
+      setError(handleError(err, 'An unexpected error occurred while fetching global metrics'));
+      setTotalGameAccuracy(0);
+      setTotalGameXP(0);
     }
-  }, [gameId]);
+  }, [gameId, supabase, setTotalGameAccuracy, setTotalGameXP, setError, handleError]);
 
-  // Refresh global metrics (e.g., after a game ends)
   const refreshGlobalMetrics = useCallback(async () => {
     await fetchGlobalMetrics();
   }, [fetchGlobalMetrics]);
 
-  // Function to start a new game
-  const startGame = useCallback(async (mode: 'solo' | 'multi', existingGameId?: string) => {
+  const startGame = useCallback(async (
+    mode: 'solo' | 'multi',
+    existingGameId?: string,
+    initialSettings?: Partial<GameSettings> // Used if creating a game with specific settings (e.g. from a lobby)
+  ) => {
+    console.log(`[GameContext] startGame called. Mode: ${mode}, ExistingGameId: ${existingGameId}, InitialSettings:`, initialSettings);
     setIsLoading(true);
     setError(null);
-    setRoundResults([]); // Clear previous round results
-    setTotalGameAccuracy(0);
-    setTotalGameXP(0);
+    setRoundResults([]);
+    // setTotalGameAccuracy(0); // Metrics are fetched/reset by fetchGlobalMetrics
+    // setTotalGameXP(0);
+
+    // Determine initial game settings
+    const gameInitialTimer = initialSettings?.timerSeconds ?? settingsTimerSeconds ?? 60;
+    const gameInitialHints = initialSettings?.hintsPerGame ?? globalHintsPerGame ?? 3;
+    const numberOfImagesPerGame = 5; // Standard number of images
+
+    let gameConfigForState: {
+      id: string;
+      images: GameImage[];
+      settings: GameSettings;
+    } | null = null;
 
     try {
-      let newGameId = existingGameId;
-      let newRoomId = existingGameId;
+      if (existingGameId) {
+        // --- JOINING AN EXISTING MULTIPLAYER GAME ---
+        console.log(`[GameContext] Attempting to join existing game: ${existingGameId}`);
+        const { data: gameRecord, error: gameFetchError } = await supabase
+          .from('games')
+          .select('id, image_ids, timer_seconds, hints_per_game')
+          .eq('id', existingGameId)
+          .single();
 
-      if (!newGameId) {
-        // Generate a new game ID if not provided (for solo games)
-        newGameId = `temp_${uuidv4()}`;
-        newRoomId = newGameId; // For solo games, roomId is the same as gameId
-      }
+        if (gameFetchError) throw handleError(gameFetchError, `Failed to fetch game data for ${existingGameId}`);
+        if (!gameRecord) throw new GameError(`Game with ID ${existingGameId} not found.`);
+        if (!gameRecord.image_ids || gameRecord.image_ids.length !== numberOfImagesPerGame) {
+          throw new GameError(`Game ${existingGameId} has invalid image_ids (count: ${gameRecord.image_ids?.length}, expected: ${numberOfImagesPerGame}).`);
+        }
 
-      // Fetch images for the game
-      const { data: imagesData, error: imagesError } = await supabase
-        .from('images')
-        .select('*')
-        .limit(5); // Fetch 5 images for the game
+        const { data: fetchedImagesData, error: imagesFetchError } = await supabase
+          .from('images')
+          .select('*')
+          .in('id', gameRecord.image_ids);
 
-      if (imagesError) {
-        throw new Error(`Failed to fetch game images: ${imagesError.message}`);
-      }
-      if (!imagesData || imagesData.length === 0) {
-        throw new Error('No images found to start the game.');
-      }
+        if (imagesFetchError) throw handleError(imagesFetchError, `Failed to fetch images for game ${existingGameId}`);
+        if (!fetchedImagesData || fetchedImagesData.length !== gameRecord.image_ids.length) {
+          throw new GameError('Could not fetch all required images for the game.');
+        }
 
-      const gameImages: GameImage[] = imagesData.map(img => ({
-        id: img.id,
-        title: img.title,
-        description: img.description,
-        latitude: img.latitude,
-        longitude: img.longitude,
-        year: img.year,
-        image_url: img.image_url,
-        location_name: img.location_name,
-      }));
+        const orderedImages = gameRecord.image_ids.map(id => 
+          fetchedImagesData.find(img => img.id === id)
+        ).filter(Boolean).map(img => mapSupabaseImageToGameImage(img as any)); // Added 'as any' to bypass strict type check if mapSupabaseImageToGameImage expects specific supabase types
 
-      setImages(gameImages);
-      setGameId(newGameId); // newGameId is existingGameId if provided, or temp_... if not
-      setRoomId(newRoomId); // newRoomId is existingGameId if provided, or temp_... if not
+        if (orderedImages.length !== gameRecord.image_ids.length) {
+          throw new GameError('Image data mismatch after ordering for existing game.');
+        }
+        
+        gameConfigForState = {
+          id: gameRecord.id,
+          images: orderedImages,
+          settings: {
+            timerSeconds: gameRecord.timer_seconds ?? gameInitialTimer,
+            hintsPerGame: gameRecord.hints_per_game ?? gameInitialHints,
+          },
+        };
+        console.log(`[GameContext] Successfully loaded data for existing game ${existingGameId}:`, gameConfigForState);
 
-      if (!existingGameId) {
-        // No existingGameId was passed, so GameContext might need to create a game in DB.
-        // newGameId at this point would be a 'temp_...' ID.
-        if (mode === 'multi') { 
-          // For multiplayer games initiated without a pre-existing ID, create a record in DB.
-          console.log(`GameContext: Creating new multiplayer game in DB. Initial temp ID was ${newGameId}.`);
+      } else {
+        // --- CREATING A NEW GAME (SOLO OR MULTIPLAYER) ---
+        console.log(`[GameContext] Creating new ${mode} game with settings: Timer=${gameInitialTimer}s, Hints=${gameInitialHints}`);
+        const { data: randomImagesRaw, error: rpcError } = await supabase
+          .rpc('get_random_game_images', { p_image_count: numberOfImagesPerGame });
+
+        if (rpcError) throw handleError(rpcError, 'Failed to fetch random images via RPC');
+        if (!randomImagesRaw || randomImagesRaw.length < numberOfImagesPerGame) {
+          throw new GameError(`Not enough random images returned (${randomImagesRaw?.length}/${numberOfImagesPerGame}).`);
+        }
+
+        const selectedImages = randomImagesRaw.map(img => mapSupabaseImageToGameImage(img as any));
+        const selectedImageIds = selectedImages.map(img => img.id);
+
+        if (mode === 'multi') {
           const { data: createdGameData, error: gameCreationError } = await supabase
             .from('games')
             .insert({
-              // Do NOT provide 'id' here; let Supabase generate it.
-              // Ensure your 'games' table has 'id' as PK, e.g., UUID with default gen_random_uuid().
-              current_round: 1, // Default or from settings
-              round_count: 5,   // Default or from settings
-              mode: mode,
-              // TODO: Associate user_id/guest_id from AuthContext if needed for new multiplayer games created here.
+              image_ids: selectedImageIds,
+              timer_seconds: gameInitialTimer,
+              hints_per_game: gameInitialHints,
+              mode: 'multi',
+              round_count: numberOfImagesPerGame, // Assuming round_count is number of images
+              // current_round: 1, // Let DB default or handle this if necessary
+              // created_by_user_id: (await supabase.auth.getUser()).data.user?.id // Optional: track creator
             })
-            .select('id') // Select the actual ID generated by the database
+            .select('id, timer_seconds, hints_per_game')
             .single();
 
-          if (gameCreationError) {
-            throw new Error(`Failed to create multiplayer game entry in GameContext: ${gameCreationError.message}`);
-          }
-          if (!createdGameData || !createdGameData.id) {
-            throw new Error('Multiplayer game created in DB by GameContext, but no ID returned.');
-          }
-          
-          console.log('Multiplayer game created in DB by GameContext. Actual ID:', createdGameData.id);
-          newGameId = createdGameData.id; // CRITICAL: Update newGameId to the actual DB-generated ID
-          setGameId(newGameId); // Update context state with the correct ID
-          if (newRoomId.startsWith('temp_')) { // If roomId was also based on the temp ID
-            setRoomId(newGameId); // Update roomId in context state as well
-          }
-        } else {
-          // Mode is 'solo' and no existingGameId was passed. newGameId is 'temp_...'.
-          // These temporary solo games are not persisted to the DB by GameContext.
-          console.log(`GameContext: Starting temporary solo game with ID ${newGameId}. Not persisting to DB.`);
+          if (gameCreationError) throw handleError(gameCreationError, 'Failed to create multiplayer game in DB');
+          if (!createdGameData) throw new GameError('Multiplayer game created but no data returned.');
+
+          gameConfigForState = {
+            id: createdGameData.id,
+            images: selectedImages,
+            settings: {
+              timerSeconds: createdGameData.timer_seconds ?? gameInitialTimer,
+              hintsPerGame: createdGameData.hints_per_game ?? gameInitialHints,
+            }
+          };
+          console.log(`[GameContext] New multiplayer game created with ID: ${createdGameData.id}`, gameConfigForState);
+        } else { // mode === 'solo'
+          const tempGameId = `solo_${uuidv4()}`;
+          gameConfigForState = {
+            id: tempGameId,
+            images: selectedImages,
+            settings: { timerSeconds: gameInitialTimer, hintsPerGame: gameInitialHints },
+          };
+          console.log(`[GameContext] New temporary solo game created with ID: ${tempGameId}`, gameConfigForState);
         }
-      } else {
-        // existingGameId was provided (e.g., from HomeLayout1).
-        // newGameId has already been set to existingGameId.
-        // The game is assumed to be in the DB already.
-        console.log(`GameContext: Using pre-existing game with ID ${newGameId}. Skipping DB insertion.`);
       }
 
-      console.log(`Game successfully initialized in context. Game ID: ${newGameId}, Room ID: ${newRoomId}`);
-    } catch (err: any) {
-      console.error('Error starting game:', err);
-      setError({ code: 'GAME_START_ERROR', message: err.message || 'Failed to start game' });
+      if (!gameConfigForState) {
+        throw new GameError('Game configuration could not be established.');
+      }
+
+      // Apply the determined game configuration to the context state
+      setGameId(gameConfigForState.id);
+      setRoomId(gameConfigForState.id); // For multi, roomId is gameId. For solo, it's the tempGameId.
+      setImages(gameConfigForState.images);
+      applyGameSettings(gameConfigForState.settings); // This updates roundTimerSec and hintsAllowed
+      
+      // Persist game state to local storage
+      saveGameState({
+        gameId: gameConfigForState.id,
+        roomId: gameConfigForState.id,
+        images: gameConfigForState.images,
+        roundResults: [], // Fresh game, no results yet
+        // currentRoundIndex: 0, // Removed as PersistedGameState may not define it
+        // settings: gameConfigForState.settings, // Removed as PersistedGameState may not define it directly
+        // Instead, map relevant settings properties to PersistedGameState properties:
+        roundTimerSec: gameConfigForState.settings.timerSeconds,
+        hintsAllowed: gameConfigForState.settings.hintsPerGame,
+        totalGameAccuracy: 0, // Added based on lint error fd945272-52e6-4b15-b89e-33538b0931e2
+        totalGameXP: 0, // Added based on lint error fd945272-52e6-4b15-b89e-33538b0931e2
+      });
+
+      console.log(`[GameContext] Game successfully initialized and state set. Game ID: ${gameConfigForState.id}, Images: ${gameConfigForState.images.length}, Timer: ${gameConfigForState.settings.timerSeconds}s, Hints: ${gameConfigForState.settings.hintsPerGame}`);
+      navigate(`/game/${gameConfigForState.id}`);
+
+    } catch (err: unknown) {
+      const gameError = handleError(err, 'An error occurred while starting the game');
+      console.error('[GameContext] Error in startGame:', gameError);
+      setError(gameError);
       setGameId(null);
       setRoomId(null);
       setImages([]);
+      // Potentially reset to global defaults if a game fails to start
+      applyGlobalDefaultSettings(); 
     } finally {
       setIsLoading(false);
     }
-  }, []);
+  }, [supabase, navigate, settingsTimerSeconds, globalHintsPerGame, setIsLoading, setError, setRoundResults, setGameId, setRoomId, setImages, applyGameSettings, saveGameState, handleError, applyGlobalDefaultSettings]);
 
   const recordRoundResult = useCallback(async (roundData: Omit<RoundResult, 'imageId' | 'actualCoordinates' | 'roundIndex' | 'timeTakenSeconds'> & { roundIndex: number; imageId: string; actualCoordinates: { lat: number; lng: number; }; timeTakenSeconds: number; }) => {
     if (!gameId) {
@@ -605,16 +694,19 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
     setRoundResults([]);
     setIsLoading(false);
     setError(null);
-    setHintsAllowed(3);
-    setRoundTimerSec(timerSeconds || 60);
+    // Reset to global/default settings when a game is reset
+    setHintsAllowed(3); // Default or from settings store if you have one for hints
+    setRoundTimerSec(settingsTimerSeconds || 60);
     setTotalGameAccuracy(0);
     setTotalGameXP(0);
     clearSavedGameState();
-  }, [clearSavedGameState, timerSeconds]);
+  }, [clearSavedGameState, settingsTimerSeconds, globalHintsPerGame]); // Added globalHintsPerGame to dependency array if it's used in reset defaults
+
+
+
 
   // --- CONTEXT VALUES ---
-  // Memoize state context value
-  const stateValue = useMemo(() => ({
+  const stateValue = useMemo<GameState>(() => ({
     gameId,
     roomId,
     images,
@@ -624,22 +716,13 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
     hintsAllowed,
     roundTimerSec,
     totalGameAccuracy,
-    totalGameXP
+    totalGameXP,
   }), [
-    gameId,
-    roomId,
-    images,
-    roundResults,
-    isLoading,
-    error,
-    hintsAllowed,
-    roundTimerSec,
-    totalGameAccuracy,
-    totalGameXP
+    gameId, roomId, images, roundResults, isLoading, error,
+    hintsAllowed, roundTimerSec, totalGameAccuracy, totalGameXP,
   ]);
 
-  // Memoize actions context value
-  const actionsValue = useMemo(() => ({
+  const actionsValue = useMemo<GameActions>(() => ({
     setGameId,
     setRoomId,
     setImages,
@@ -647,21 +730,24 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
     setIsLoading,
     setError,
     setHintsAllowed,
-    setRoundTimerSec: handleSetRoundTimerSec,
+    setRoundTimerSec, // This now correctly refers to the local state setter for the current game round's timer
     setTotalGameAccuracy,
     setTotalGameXP,
     startGame,
     recordRoundResult,
     resetGame,
     fetchGlobalMetrics,
-    refreshGlobalMetrics
+    refreshGlobalMetrics,
+    applyGameSettings,
+    applyGlobalDefaultSettings,
+    clearSavedGameState,
+    // If you want to expose the function to set global timer preference, add it here with a clear name
+    // e.g., setGlobalUserTimerPreference: handleSetGlobalRoundTimerSec,
   }), [
-    handleSetRoundTimerSec,
-    startGame,
-    recordRoundResult,
-    resetGame,
-    fetchGlobalMetrics,
-    refreshGlobalMetrics
+    setGameId, setRoomId, setImages, setRoundResults, setIsLoading, setError,
+    setHintsAllowed, setRoundTimerSec, setTotalGameAccuracy, setTotalGameXP,
+    startGame, recordRoundResult, resetGame, fetchGlobalMetrics, refreshGlobalMetrics,
+    applyGameSettings, applyGlobalDefaultSettings, clearSavedGameState, handleSetGlobalRoundTimerSec // Added handleSetGlobalRoundTimerSec to deps
   ]);
 
   return (
@@ -672,3 +758,5 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
     </GameStateContext.Provider>
   );
 };
+
+// Error classes are now exported at their definition.

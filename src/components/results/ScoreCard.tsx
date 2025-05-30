@@ -38,7 +38,7 @@ const ScoreCard: React.FC<ScoreCardProps> = ({
           <div className="text-sm text-muted-foreground">Accuracy</div>
         </div>
         <div className="flex flex-col items-center justify-center p-3 rounded-xl bg-history-secondary/5 dark:bg-history-secondary/10">
-          <Badge variant="green" className="text-lg mb-1">
+          <Badge variant="xp" className="text-lg mb-1">
             +{roundedXpTotal} XP
           </Badge>
           <div className="text-sm text-muted-foreground">XP Gained</div>
@@ -48,11 +48,11 @@ const ScoreCard: React.FC<ScoreCardProps> = ({
       <div className="space-y-2">
         <div className="flex items-center justify-between">
           <span className="text-sm">Where:</span>
-          <Badge variant="orange" className="text-xl">{roundedLocationAccuracy}% Correct</Badge>
+          <Badge variant="accuracy" className="text-xl">{roundedLocationAccuracy}% Correct</Badge>
         </div>
         <div className="flex items-center justify-between">
           <span className="text-sm">When:</span>
-          <Badge variant="orange" className="text-xl">{roundedTimeAccuracy}% Correct</Badge>
+          <Badge variant="accuracy" className="text-xl">{roundedTimeAccuracy}% Correct</Badge>
         </div>
       </div>
       
