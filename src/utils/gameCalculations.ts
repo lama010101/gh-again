@@ -159,16 +159,11 @@ export const calculateFinalScore = (roundScores: Array<{
   finalPercent: number;
   totalHintPenalty: number;
   totalHintPenaltyPercent: number;
-  roundScores: Array<{
-    roundXP: number;
-    roundPercent: number;
-    hintPenalty?: number;
-    hintPenaltyPercent?: number;
-  }>;
+  // roundScores property removed from return type
 } => {
   // Calculate total hint penalties
   const totalHintPenalty = roundScores.reduce((sum, round) => sum + (round.hintPenalty || 0), 0);
-  const totalHintPenaltyPercent = roundScores.reduce((sum, round) => sum + (round.hintPenaltyPercent || 0), 0) / roundScores.length;
+  const totalHintPenaltyPercent = roundScores.length > 0 ? roundScores.reduce((sum, round) => sum + (round.hintPenaltyPercent || 0), 0) / roundScores.length : 0;
   
   // Sum up all round XP values and round to nearest integer
   const finalXP = Math.round(roundScores.reduce((sum, round) => sum + round.roundXP, 0));
@@ -182,7 +177,7 @@ export const calculateFinalScore = (roundScores: Array<{
     finalPercent,
     totalHintPenalty,
     totalHintPenaltyPercent,
-    roundScores // Pass through the original roundScores array
+    // roundScores property removed from returned object
   };
 };
 
