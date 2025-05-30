@@ -109,12 +109,6 @@ const FinalResultsPage: React.FC = (): JSX.Element | null => {
     }));
   }, []);
 
-  // Use custom hook to calculate detailed scores for each round
-  const detailedRoundScores: DetailedRoundScore[] = useRoundScores(images, roundResults);
-
-  // Use custom hook to calculate final score data
-  const finalScoreData = useFinalScoreData(detailedRoundScores);
-
   // Log final score data when it changes
   useEffect(() => {
     if (finalScoreData && finalScoreData.roundScores && finalScoreData.roundScores.length > 0) {
