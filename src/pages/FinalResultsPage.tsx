@@ -121,10 +121,17 @@ const FinalResultsPage: React.FC = (): JSX.Element | null => {
   }, [finalScoreData, user, gameId, refreshGlobalMetrics, addLog, roundResults, metricsHaveBeenUpdated]);
 
   const handlePlayAgain = async (): Promise<void> => {
-    resetGame();
-    setMetricsHaveBeenUpdated(false); // Reset flag for new game
-    navigate('/');
-    await startGame('solo');
+    try {
+      resetGame();
+      setMetricsHaveBeenUpdated(false); // Reset flag for new game
+      navigate('/');
+      await startGame('solo');
+    } catch (error) {
+      addLog(`[FinalResultsPage] Error starting new game: ${error instanceof Error ? error.message : String(error)}`);
+      console.error('Error starting new game:', error);
+      // Optionally, display an error message to the user here
+      // For example, by setting an error state and rendering an error component
+    }
   };
 
   const handleHome = (): void => {

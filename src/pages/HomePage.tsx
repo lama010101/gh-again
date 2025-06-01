@@ -7,6 +7,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { UserSettings, fetchUserSettings, UserProfile, fetchUserProfile } from '@/utils/profile/profileService';
 import { GameModeCard } from "@/components/GameModeCard";
 import { useGame } from "@/contexts/GameContext";
+import type { GameSettings } from '@/types/game'; // Import GameSettings
 import { useNavigate } from 'react-router-dom';
 import { useToast } from '@/hooks/use-toast';
 
@@ -74,19 +75,44 @@ const HomePage = () => {
         }
         
         console.log('Calling startGame()...');
-        startGame();
-        console.log('startGame() completed, navigating to /test/game/solo/1');
+        // Map 'classic' to 'solo' for the GameContext's startGame function
+        const gameContextMode = mode === 'classic' ? 'solo' : mode === 'time-attack' ? 'multi' : 'solo'; 
+        // For 'challenge' or other modes, default to 'solo' for now
         
-        // Navigate to the solo game with round 1
-        navigate('/test/game/solo/1');
+        console.log(`Starting ${gameContextMode} game...`);
+        // Call startGame with the mode as the first argument
+        await startGame(undefined, { mode: gameContextMode });
+        console.log('startGame() completed');
+        
+        // The startGame function will handle navigation to the first round
         
       } catch (error) {
-        const errorMsg = error instanceof Error ? error.message : 'Unknown error occurred';
-        console.error('Error starting game:', errorMsg, error);
+        // Ensure we extract a readable message from any type of error
+        let errorMsg = 'Failed to start the game';
+        if (error instanceof Error) {
+          errorMsg = error.message;
+        } else if (typeof error === 'object' && error !== null) {
+          // Handle cases where the error is an object with a message property
+          const errorObj = error as any;
+          if (errorObj.message) {
+            errorMsg = errorObj.message;
+          } else if (errorObj.error && errorObj.error.message) {
+            errorMsg = errorObj.error.message;
+          } else {
+            // If we can't extract a specific message, stringify the error object properly
+            try {
+              errorMsg = JSON.stringify(error);
+            } catch (e) {
+              errorMsg = 'Error details could not be displayed';
+            }
+          }
+        }
+        
+        console.error('Error starting game:', error);
         toast({
-          variant: "destructive",
-          title: "Error",
-          description: `Failed to start the game: ${errorMsg}`,
+          title: "Game Loading Error",
+          description: errorMsg,
+          variant: "destructive"
         });
       }
     } else {
@@ -106,7 +132,7 @@ const HomePage = () => {
     
     if (!isLoading) {
       try {
-        startGame?.(settings);
+        startGame?.('multi', undefined, settings);
         navigate('/game');
       } catch (error) {
         console.error('Error starting friends game:', error);

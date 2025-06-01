@@ -44,6 +44,7 @@ export interface HintData {
 export interface GameSettings {
   timerSeconds: number; // Required, minimum 0
   hintsPerGame: number; // Required, minimum 0
+  mode?: string; // Added: e.g., 'solo', 'multi', 'time-attack'
 }
 
 export interface GameMetrics {

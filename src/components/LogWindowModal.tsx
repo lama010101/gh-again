@@ -1,4 +1,4 @@
-import React, { useRef } from 'react';
+import React, { useRef, useState } from 'react';
 import { useLogs } from '@/contexts/LogContext';
 import { Button } from "@/components/ui/button";
 import {
@@ -14,11 +14,42 @@ import { Copy, X, Terminal } from 'lucide-react';
 export const LogWindowModal: React.FC = () => {
   const { logs, clearLogs, isLogWindowOpen, closeLogWindow } = useLogs();
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const [copySuccess, setCopySuccess] = useState(false);
 
-  const handleCopy = () => {
-    if (textareaRef.current) {
-      textareaRef.current.select();
-      document.execCommand('copy');
+  const handleCopy = async () => {
+    if (!logs) return;
+
+    // Try using the modern Clipboard API first (works in secure contexts)
+    try {
+      await navigator.clipboard.writeText(logs);
+      setCopySuccess(true);
+      setTimeout(() => setCopySuccess(false), 1500);
+      return; // Success, exit early
+    } catch (err) {
+      console.log('Clipboard API not available, falling back to execCommand');
+    }
+
+    // Fallback to document.execCommand for older browsers or non-secure contexts
+    const textarea = document.createElement('textarea');
+    textarea.value = logs;
+    textarea.style.position = 'fixed';  // Prevent scrolling to bottom of page in MS Edge
+    textarea.style.opacity = '0';
+    textarea.style.pointerEvents = 'none';
+    document.body.appendChild(textarea);
+    
+    try {
+      textarea.select();
+      textarea.setSelectionRange(0, 99999); // For mobile devices
+      
+      const successful = document.execCommand('copy');
+      setCopySuccess(successful);
+      setTimeout(() => setCopySuccess(false), 1500);
+    } catch (err) {
+      console.error('Failed to copy logs: ', err);
+      setCopySuccess(false);
+    } finally {
+      // Clean up
+      document.body.removeChild(textarea);
     }
   };
 
@@ -35,13 +66,13 @@ export const LogWindowModal: React.FC = () => {
             </div>
             <div className="flex gap-2">
               <Button
-                variant="outline"
+                variant="outline" // Revert to outline, as 'success' variant is not supported
                 size="sm"
                 onClick={handleCopy}
-                className="gap-2"
+                className={`gap-2 ${copySuccess ? 'bg-green-500 text-white hover:bg-green-600' : ''}`}
               >
                 <Copy className="h-4 w-4" />
-                Copy
+                {copySuccess ? 'Copied!' : 'Copy'}
               </Button>
               <Button
                 variant="outline"
@@ -77,12 +108,13 @@ export const LogWindowModal: React.FC = () => {
               </div>
             )}
           </ScrollArea>
-          {/* Hidden textarea for copying */}
+          {/* Hidden textarea for copying (fallback) */}
           <textarea
             ref={textareaRef}
             value={logs}
             readOnly
-            className="absolute opacity-0 h-0 w-0"
+            tabIndex={-1}
+            style={{ position: 'fixed', left: '-9999px', opacity: 0, pointerEvents: 'none' }}
             aria-hidden="true"
           />
         </div>

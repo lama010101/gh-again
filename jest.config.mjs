@@ -1,6 +1,6 @@
 /** @type {import('ts-jest').JestConfigWithTsJest} */
 module.exports = {
-  preset: 'ts-jest/presets/default-esm',
+  preset: 'ts-jest',
   testEnvironment: 'jsdom',
   roots: ['<rootDir>/src'],
   modulePaths: ['<rootDir>/src'],
@@ -15,7 +15,6 @@ module.exports = {
     '^.+\\.(ts|tsx)$': [
       'ts-jest',
       {
-        useESM: true,
         tsconfig: 'tsconfig.test.json',
         isolatedModules: true,
       },
@@ -50,7 +49,19 @@ module.exports = {
   transformIgnorePatterns: [
     'node_modules/(?!(node-fetch|fetch-blob|@testing-library|uuid|@hookform|@radix-ui)/)',
   ],
+  // Setup for testing-library
+  testEnvironmentOptions: {
+    url: 'http://localhost',
+  },
+  // Watch plugins for better DX
+  watchPlugins: [
+    'jest-watch-typeahead/filename',
+    'jest-watch-typeahead/testname',
+  ],
   // Reset mocks between tests
   resetMocks: true,
+  // Clear mock calls between tests
   clearMocks: true,
+  // Collect coverage while running tests
+  collectCoverage: false, // Set to true when needed to generate coverage
 };

@@ -200,14 +200,19 @@ export async function updateUserAvatar(userId: string, avatarId: string, customI
       
       imageUrl = avatarData.image_url;
     }
+
+    if (!imageUrl) {
+      console.error('No image URL determined for avatar update.');
+      return false;
+    }
     
-    // Update the user profile with the new avatar
+    // Update the user's profile with the new avatar URL
     const { error } = await supabase
       .from('profiles')
       .update({ 
         avatar_url: avatarId,
         avatar_image_url: imageUrl,
-        updated_at: new Date().toISOString()
+        updated_at: new Date().toISOString() 
       })
       .eq('id', userId);
       

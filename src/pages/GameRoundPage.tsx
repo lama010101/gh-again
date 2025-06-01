@@ -34,7 +34,7 @@ const GameRoundPage: React.FC<GameRoundPageProps> = ({ mode: initialMode = 'solo
   }>();
 
   const { toast } = useToast();
-  const { startGame, fetchGlobalMetrics, refreshGlobalMetrics } = useGameActions();
+  const { startGame } = useGameActions(); // Removed unused fetchGlobalMetrics and refreshGlobalMetrics
   const { 
     isLoading: isContextLoading, 
     error: contextError, 
@@ -42,31 +42,99 @@ const GameRoundPage: React.FC<GameRoundPageProps> = ({ mode: initialMode = 'solo
     hintsAllowed, 
     totalGameAccuracy, 
     totalGameXP, 
-    gameId 
+    gameId,
+    images
   } = useGameState();
+  
+  // Initialize game if needed
+  useEffect(() => {
+    const initializeGame = async () => {
+      try {
+        // Only try to start game if we don't have a gameId or images
+        if (!gameId && !isContextLoading) {
+          console.log('[GameRoundPage] Initializing new game...');
+          // Create proper game settings object
+          const gameSettings = {
+            mode: initialMode,
+            hintsAllowed: 3, // Default value
+            roundTime: 60    // Default value in seconds
+          };
+          await startGame(paramRoomId, gameSettings);
+        }
+      } catch (error) {
+        console.error('Error initializing game:', error);
+        toast({
+          title: 'Error',
+          description: 'Failed to start the game. Please try again.',
+          variant: 'destructive',
+        });
+      }
+    };
+
+    initializeGame();
+  }, [gameId, initialMode, isContextLoading, paramRoomId, startGame, toast]);
+  
+  // Show loading state while game is initializing
+  if (isContextLoading || (!gameId && !contextError)) {
+    return (
+      <div className="flex items-center justify-center min-h-screen">
+        <Loader className="w-12 h-12 animate-spin" />
+      </div>
+    );
+  }
+  
+  // Show error state if there was a problem
+  if (contextError) {
+    return (
+      <div className="flex flex-col items-center justify-center min-h-screen p-4 text-center">
+        <h2 className="text-2xl font-bold text-red-600 mb-4">Error Loading Game</h2>
+        <p className="mb-4">{contextError.message || 'An unknown error occurred'}</p>
+        <Button onClick={() => window.location.reload()}>
+          Try Again
+        </Button>
+      </div>
+    );
+  }
 
   const roundNumber = parseInt(roundNumberStr || '1', 10);
   const effectiveRoomId = paramRoomId || gameId;
 
+  // Get the round data with proper error handling - must be called unconditionally
+  const roundData = useGameRound({
+    roundNumber,
+    effectiveRoomId
+  });
+
   const [isRoundTimerActive, setIsRoundTimerActive] = useState(true);
+
+  // Destructure after checking if roundData is valid
   const {
     currentGuess,
     selectedYear,
     isSubmitting,
-    // isTimerActive is now managed locally as isRoundTimerActive
-    hintsUsedThisRound, // This will be reset by useGameRound internally
-    imageForRound,
-    currentRoundIndex,
+    hintsUsedThisRound = 0, 
+    currentRoundIndex = 0,
     tooltipOpen,
-    hasGuessedLocation, // Needed for GameLayout1
+    hasGuessedLocation = false,
     handleMapClick,
     handleYearSelect,
     handleUseHint,
     handleSubmitGuess,
-  } = useGameRound({
-    roundNumber,
-    effectiveRoomId
-  });
+    imageForRound
+  } = roundData || {};
+
+  // Ensure we have a valid image for the round
+  if (!imageForRound) {
+    return (
+      <div className="flex flex-col items-center justify-center min-h-screen p-4 text-center">
+        <h2 className="text-2xl font-bold text-yellow-600 mb-4">Game Data Not Ready</h2>
+        <p className="mb-4">Unable to load the game data for this round. Please try again.</p>
+        <Button onClick={() => window.location.reload()} variant="outline">
+          Reload Game
+        </Button>
+      </div>
+    );
+  }
 
   const [gameMode, setGameMode] = useState<'solo' | 'multi'>(initialMode);
   const { 
@@ -81,17 +149,29 @@ const GameRoundPage: React.FC<GameRoundPageProps> = ({ mode: initialMode = 'solo
     isActive: isRoundTimerActive
   });
 
-  const { 
-    selectedHintType, 
-    hintContent, 
-    canSelectHint, 
-    selectHint, 
-    resetHint 
-  } = useHint(imageForRound ? {
+  // Use a more defensive approach with the useHint hook
+  const hintData = useHint(imageForRound ? {
     ...imageForRound,
-    gps: { lat: imageForRound.latitude, lng: imageForRound.longitude },
-    url: imageForRound.image_url
+    latitude: imageForRound.latitude,
+    longitude: imageForRound.longitude,
+    image_url: imageForRound.image_url
   } : undefined);
+
+  // Destructure with defaults to prevent undefined errors
+  const { 
+    selectedHintType = null, 
+    hintContent = '',
+    selectHint = () => {},
+    resetHint = () => {}
+  } = hintData || {};
+  
+  // Safely check if we can select a hint
+  const canSelectHint = Boolean(
+    hintData && 
+    typeof hintData === 'object' && 
+    'canSelectHint' in hintData && 
+    hintData.canSelectHint
+  );
 
   const [isHintModalOpen, setIsHintModalOpen] = useState(false);
 
@@ -135,7 +215,14 @@ const GameRoundPage: React.FC<GameRoundPageProps> = ({ mode: initialMode = 'solo
 
     // If it's the first round and game hasn't started, start it
     if (roundNumber === 1 && !gameId) {
-      startGame(initialMode, paramRoomId);
+      // Create a proper game settings object
+      const gameSettings = {
+        mode: initialMode,
+        // Add other required settings with default values
+        hintsAllowed: 3, // Default value
+        roundTime: 60    // Default value in seconds
+      };
+      startGame(undefined, gameSettings);
     }
 
     // Reset hints used for the new round - This is now handled by useGameRound's internal useEffect
