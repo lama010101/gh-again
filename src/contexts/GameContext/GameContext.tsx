@@ -136,16 +136,41 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
     
     try {
+      console.log('Starting recordRoundResult for gameId:', gameId);
+      
       // First, ensure the game exists
+      console.log('Checking if game exists in database...');
       const { data: gameData, error: gameError } = await supabaseClient
         .from('games')
-        .select('id')
+        .select('id, created_at')
         .eq('id', gameId)
         .single();
 
+      // If game doesn't exist, create it
       if (gameError || !gameData) {
-        console.error('Game not found:', gameError);
-        return false;
+        console.log('Game not found, creating new game record...');
+        const newGame = {
+          id: gameId,
+          mode: 'solo',
+          created_at: new Date().toISOString(),
+          created_by: null,
+          completed: false,
+          current_round: 1,
+          round_count: 5,
+          score: 0
+        };
+        
+        const { error: createError } = await supabaseClient
+          .from('games')
+          .insert(newGame);
+          
+        if (createError) {
+          console.error('Error creating game:', createError);
+          throw new Error('Could not create game record');
+        }
+        console.log('Created new game record');
+      } else {
+        console.log('Found existing game record');
       }
 
       // Prepare the round data with only the fields that exist in the game_rounds table
@@ -153,37 +178,63 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
         game_id: gameId,
         round_index: roundResultData.roundIndex + 1, // Convert to 1-based index
         image_id: roundResultData.imageId,
-        created_at: new Date().toISOString(),
+        created_at: new Date().toISOString()
       };
-
-      console.log('Inserting round result (stringified):', JSON.stringify(roundData));
       
-      // Insert the round result
-      const { data, error: insertError } = await supabaseClient
+      console.log('Inserting round data:', roundData);
+      
+      // Try to insert with select to get the inserted data
+      const { data: insertedData, error: insertError } = await supabaseClient
         .from('game_rounds')
         .insert(roundData)
-        .select();
+        .select()
+        .single();
 
       if (insertError) {
-        console.error('Error inserting round result:', insertError);
-        return false;
+        console.error('Error inserting round result (with select):', insertError);
+        
+        // If the first insert with select fails, try insert without select
+        console.log('Attempting insert without select...');
+        const { error: simpleInsertError } = await supabaseClient
+          .from('game_rounds')
+          .insert(roundData);
+          
+        if (simpleInsertError) {
+          console.error('Error inserting round result (simple insert):', simpleInsertError);
+          throw simpleInsertError;
+        }
+        
+        // If we get here, the insert succeeded but we don't have the inserted data
+        // Fetch the most recent round for this game
+        const { data: latestRound, error: fetchError } = await supabaseClient
+          .from('game_rounds')
+          .select('*')
+          .eq('game_id', gameId)
+          .order('created_at', { ascending: false })
+          .limit(1)
+          .single();
+          
+        if (fetchError) {
+          console.error('Error fetching inserted round:', fetchError);
+          throw new Error('Round result recorded but could not retrieve details');
+        }
+        
+        console.log('Successfully inserted round result (fetched after insert)');
+        return true;
       }
-
-      // Add the round result to the local state
-      if (data && data.length > 0) {
-        dispatch(setRoundResults([...roundResults, roundResultData]));
-        console.log('Successfully recorded round result:', data[0]);
-      } else {
-        console.warn('No data returned from round result insert');
-      }
-
+      
+      console.log('Successfully inserted round result');
       return true;
       
     } catch (err) {
-      console.error('Exception in recordRoundResult:', err);
+      console.error('Exception in recordRoundResult:', {
+        error: err,
+        message: err instanceof Error ? err.message : 'Unknown error',
+        stack: err instanceof Error ? err.stack : undefined
+      });
       return false;
     }
-  }, [gameId, dispatch, supabaseClient]); // Removed session from dependency array
+  }, [gameId, dispatch, supabaseClient]);
 
   // Start a new game or join an existing one
   const startGame = useCallback(
