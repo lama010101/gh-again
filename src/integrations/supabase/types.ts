@@ -9,6 +9,36 @@ export type Json =
 export type Database = {
   public: {
     Tables: {
+      air_entries: {
+        Row: {
+          created_at: string
+          id: string
+          identifier: string
+          model_id: number
+          source: string
+          user_id: string | null
+          version: number
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          identifier?: string
+          model_id: number
+          source: string
+          user_id?: string | null
+          version: number
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          identifier?: string
+          model_id?: number
+          source?: string
+          user_id?: string | null
+          version?: number
+        }
+        Relationships: []
+      }
       avatars: {
         Row: {
           created_at: string | null
@@ -190,49 +220,142 @@ export type Database = {
         Row: {
           accuracy_score: Json | null
           ai_generated: boolean | null
+          aspect_ratio: string | null
+          aspectratio: string | null
+          cfg_scale: number | null
+          cfgscale: number | null
+          content_hash: string | null
+          cost: number | null
+          country: string | null
           created_at: string | null
           description: string
+          desktop_image_url: string | null
+          desktop_size_kb: number | null
+          exact_date: string | null
+          height: number | null
+          hint_what: string | null
+          hint_when: string | null
+          hint_where: string | null
           id: string
           image_url: string
           latitude: number
           location_name: string
           longitude: number
           mature_content: boolean | null
+          mobile_image_url: string | null
+          mobile_size_kb: number | null
+          model: string | null
+          negative_prompt: string | null
+          negativeprompt: string | null
+          nsfwcontent: boolean | null
+          optimized_image_url: string | null
+          original_size_kb: number | null
+          output_format: string | null
+          outputformat: string | null
+          positive_prompt: string | null
+          positiveprompt: string | null
           ready: boolean | null
+          scheduler: string | null
+          seed: number | null
+          steps: number | null
+          thumbnail_image_url: string | null
           title: string
           true_event: boolean | null
+          width: number | null
           year: number
         }
         Insert: {
           accuracy_score?: Json | null
           ai_generated?: boolean | null
+          aspect_ratio?: string | null
+          aspectratio?: string | null
+          cfg_scale?: number | null
+          cfgscale?: number | null
+          content_hash?: string | null
+          cost?: number | null
+          country?: string | null
           created_at?: string | null
           description: string
+          desktop_image_url?: string | null
+          desktop_size_kb?: number | null
+          exact_date?: string | null
+          height?: number | null
+          hint_what?: string | null
+          hint_when?: string | null
+          hint_where?: string | null
           id?: string
           image_url: string
           latitude: number
           location_name: string
           longitude: number
           mature_content?: boolean | null
+          mobile_image_url?: string | null
+          mobile_size_kb?: number | null
+          model?: string | null
+          negative_prompt?: string | null
+          negativeprompt?: string | null
+          nsfwcontent?: boolean | null
+          optimized_image_url?: string | null
+          original_size_kb?: number | null
+          output_format?: string | null
+          outputformat?: string | null
+          positive_prompt?: string | null
+          positiveprompt?: string | null
           ready?: boolean | null
+          scheduler?: string | null
+          seed?: number | null
+          steps?: number | null
+          thumbnail_image_url?: string | null
           title: string
           true_event?: boolean | null
+          width?: number | null
           year: number
         }
         Update: {
           accuracy_score?: Json | null
           ai_generated?: boolean | null
+          aspect_ratio?: string | null
+          aspectratio?: string | null
+          cfg_scale?: number | null
+          cfgscale?: number | null
+          content_hash?: string | null
+          cost?: number | null
+          country?: string | null
           created_at?: string | null
           description?: string
+          desktop_image_url?: string | null
+          desktop_size_kb?: number | null
+          exact_date?: string | null
+          height?: number | null
+          hint_what?: string | null
+          hint_when?: string | null
+          hint_where?: string | null
           id?: string
           image_url?: string
           latitude?: number
           location_name?: string
           longitude?: number
           mature_content?: boolean | null
+          mobile_image_url?: string | null
+          mobile_size_kb?: number | null
+          model?: string | null
+          negative_prompt?: string | null
+          negativeprompt?: string | null
+          nsfwcontent?: boolean | null
+          optimized_image_url?: string | null
+          original_size_kb?: number | null
+          output_format?: string | null
+          outputformat?: string | null
+          positive_prompt?: string | null
+          positiveprompt?: string | null
           ready?: boolean | null
+          scheduler?: string | null
+          seed?: number | null
+          steps?: number | null
+          thumbnail_image_url?: string | null
           title?: string
           true_event?: boolean | null
+          width?: number | null
           year?: number
         }
         Relationships: []
@@ -244,7 +367,6 @@ export type Database = {
           avatar_url: string | null
           created_at: string | null
           display_name: string | null
-          earned_badges: string[] | null
           id: string
           updated_at: string | null
         }
@@ -254,7 +376,6 @@ export type Database = {
           avatar_url?: string | null
           created_at?: string | null
           display_name?: string | null
-          earned_badges?: string[] | null
           id: string
           updated_at?: string | null
         }
@@ -264,9 +385,95 @@ export type Database = {
           avatar_url?: string | null
           created_at?: string | null
           display_name?: string | null
-          earned_badges?: string[] | null
           id?: string
           updated_at?: string | null
+        }
+        Relationships: []
+      }
+      prompts: {
+        Row: {
+          "1_when_century": string | null
+          "1_where_continent": string | null
+          "2_when_event": string | null
+          "2_when_event_years": string | null
+          "2_where_landmark": string | null
+          "2_where_landmark_km": number | null
+          "3_when_decade": string | null
+          "3_where_region": string | null
+          ai_generated: boolean | null
+          country: string | null
+          created_at: string | null
+          date: string | null
+          description: string | null
+          gps_coordinates: string | null
+          id: string
+          key_elements: string | null
+          location: string | null
+          prompt: string
+          real_event: boolean | null
+          theme: string | null
+          title: string | null
+          updated_at: string | null
+          user_id: string
+          where_image: string | null
+          where_image_km: number | null
+          year: number | null
+        }
+        Insert: {
+          "1_when_century"?: string | null
+          "1_where_continent"?: string | null
+          "2_when_event"?: string | null
+          "2_when_event_years"?: string | null
+          "2_where_landmark"?: string | null
+          "2_where_landmark_km"?: number | null
+          "3_when_decade"?: string | null
+          "3_where_region"?: string | null
+          ai_generated?: boolean | null
+          country?: string | null
+          created_at?: string | null
+          date?: string | null
+          description?: string | null
+          gps_coordinates?: string | null
+          id?: string
+          key_elements?: string | null
+          location?: string | null
+          prompt: string
+          real_event?: boolean | null
+          theme?: string | null
+          title?: string | null
+          updated_at?: string | null
+          user_id: string
+          where_image?: string | null
+          where_image_km?: number | null
+          year?: number | null
+        }
+        Update: {
+          "1_when_century"?: string | null
+          "1_where_continent"?: string | null
+          "2_when_event"?: string | null
+          "2_when_event_years"?: string | null
+          "2_where_landmark"?: string | null
+          "2_where_landmark_km"?: number | null
+          "3_when_decade"?: string | null
+          "3_where_region"?: string | null
+          ai_generated?: boolean | null
+          country?: string | null
+          created_at?: string | null
+          date?: string | null
+          description?: string | null
+          gps_coordinates?: string | null
+          id?: string
+          key_elements?: string | null
+          location?: string | null
+          prompt?: string
+          real_event?: boolean | null
+          theme?: string | null
+          title?: string | null
+          updated_at?: string | null
+          user_id?: string
+          where_image?: string | null
+          where_image_km?: number | null
+          year?: number | null
         }
         Relationships: []
       }
@@ -287,73 +494,58 @@ export type Database = {
           value?: Json
         }
         Relationships: []
-      },
-      badges: {
-        Row: {
-          id: string
-          name: string
-          description: string
-          icon_name: string
-          category: string
-          difficulty: string
-          requirement_code: string
-          requirement_value: number
-          image_url?: string
-          created_at: string
-        }
-        Insert: {
-          id?: string
-          name: string
-          description: string
-          icon_name: string
-          category: string
-          difficulty: string
-          requirement_code: string
-          requirement_value: number
-          image_url?: string
-          created_at?: string
-        }
-        Update: {
-          id?: string
-          name?: string
-          description?: string
-          icon_name?: string
-          category?: string
-          difficulty?: string
-          requirement_code?: string
-          requirement_value?: number
-          image_url?: string
-          created_at?: string
-        }
-        Relationships: []
-      },
+      }
       user_metrics: {
         Row: {
-          id: string
-          user_id: string
-          xp_total: number
-          overall_accuracy: number
+          best_accuracy: number | null
+          challenge_accuracy: number | null
+          created_at: string | null
           games_played: number
-          created_at: string
-          updated_at: string
+          global_rank: number | null
+          id: string
+          location_accuracy: number | null
+          location_bullseye: number
+          overall_accuracy: number | null
+          perfect_games: number
+          time_accuracy: number | null
+          updated_at: string | null
+          user_id: string | null
+          xp_total: number | null
+          year_bullseye: number
         }
         Insert: {
+          best_accuracy?: number | null
+          challenge_accuracy?: number | null
+          created_at?: string | null
+          games_played?: number
+          global_rank?: number | null
           id?: string
-          user_id: string
-          xp_total: number
-          overall_accuracy: number
-          games_played: number
-          created_at?: string
-          updated_at?: string
+          location_accuracy?: number | null
+          location_bullseye?: number
+          overall_accuracy?: number | null
+          perfect_games?: number
+          time_accuracy?: number | null
+          updated_at?: string | null
+          user_id?: string | null
+          xp_total?: number | null
+          year_bullseye?: number
         }
         Update: {
-          id?: string
-          user_id?: string
-          xp_total?: number
-          overall_accuracy?: number
+          best_accuracy?: number | null
+          challenge_accuracy?: number | null
+          created_at?: string | null
           games_played?: number
-          created_at?: string
-          updated_at?: string
+          global_rank?: number | null
+          id?: string
+          location_accuracy?: number | null
+          location_bullseye?: number
+          overall_accuracy?: number | null
+          perfect_games?: number
+          time_accuracy?: number | null
+          updated_at?: string | null
+          user_id?: string | null
+          xp_total?: number | null
+          year_bullseye?: number
         }
         Relationships: []
       }
